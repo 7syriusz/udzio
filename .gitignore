@@ -1,0 +1,20 @@
+# Sekrety i lokalna konfiguracja
+.env
+.env.*
+!.env.example
+auth.json
+
+# Zrzuty baz danych i archiwa
+*.sql
+*.sql.gz
+*.zip
+
+# Zależności i pliki generowane
+/vendor
+/node_modules
+
+# Pliki systemowe i edytorów
+*:Zone.Identifier
+.DS_Store
+/.idea
+/.vscode

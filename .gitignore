@@ -18,3 +18,26 @@ auth.json
 .DS_Store
 /.idea
 /.vscode
+
+# Laravel (szkielet)
+*.log
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.codex
+/.cursor/
+/.nova
+/.phpunit.cache
+/.zed
+/auth.json
+/public/build
+/public/fonts-manifest.dev.json
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+Thumbs.db

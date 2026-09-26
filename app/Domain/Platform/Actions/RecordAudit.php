@@ -21,6 +21,8 @@ final class RecordAudit
         ?string $organizationId = null,
         ?string $reason = null,
         ?string $correlationId = null,
+        ?array $before = null,
+        ?array $after = null,
     ): AuditEntry {
         $actor = $this->context->current();
         $attributes = [
@@ -35,6 +37,8 @@ final class RecordAudit
             'reason' => $reason,
             'correlation_id' => $correlationId ?? (string) Str::ulid(),
             'occurred_at' => now('UTC'),
+            'before_values' => $before,
+            'after_values' => $after,
         ];
 
         Validator::make($attributes, [

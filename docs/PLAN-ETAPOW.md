@@ -96,3 +96,5 @@ Etapy E3–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nic
 - E1.1: kontekst ACTOR w HTTP, komendach i kolejce, jawny zakres integracji, izolacja po błędach i resecie pracownika. 13 nowych przypadków / 25 asercji; bez migracji bazy. Zasady: Z-011 i ARCHITEKTURA §5. Pełny zestaw lokalny: **24 testy / 45 asercji**. Scalenie wymaga zielonego CI.
 - E1.1 scalony do `main`: `aff4819`; CI gałęzi `36208109842` — sukces.
 - E1.2: audyt tylko do dopisywania, rozdzielenie ACTOR/SUBJECT, korelacja i kontekst organizacji, ochrona PHP oraz triggery MySQL. 12 nowych przypadków / 32 asercje; wariant administracyjnej usługi migracji bez zmiany globalnych ograniczeń MySQL. Szczegóły i ograniczenia: Z-012. Pełna regresja lokalna: **36 testów / 77 asercji**. Scalenie wymaga zielonego CI.
+- E1.2 scalony do `main`: `ebbf114`; CI gałęzi `36223481216` — sukces.
+- E1.3: automatyczny audyt zapisów i usunięć instancji User, wartości przed/po, redakcja sekretów, jawny powód oraz atomowość. 11 nowych przypadków / 36 asercji. Pełna regresja: **47 testów / 113 asercji**. Zakres i ograniczenia: Z-013. Scalenie wymaga zielonego CI.

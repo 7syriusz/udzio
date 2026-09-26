@@ -27,6 +27,8 @@ class AuditEntry extends Model
     protected function casts(): array
     {
         return [
+            'before_values' => 'array',
+            'after_values' => 'array',
             'actor_type' => ActorType::class,
             'result' => AuditResult::class,
             'occurred_at' => 'immutable_datetime',

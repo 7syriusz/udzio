@@ -65,3 +65,29 @@ https://dev.mysql.com/doc/refman/8.4/en/stored-programs-logging.html
 Wycofanie E1.2: cofnąć kod aplikacji, zachowując tabelę i triggery. `down()` odmawia usunięcia tabeli,
 jeśli zawiera historię; pustą tabelę można usunąć. Przed zmianą instalacji wykonać kopię bazy.
 Nie przewidujemy fabryki/seedera wpisów audytu — testy tworzą fakty wyłącznie przez `RecordAudit`.
+
+## Z-013 — Automatyczny audyt modeli (E1.3, techniczne, 2026-09-26)
+
+Modele dołączają `AuditsChanges` i jawnie deklarują typ SUBJECT-u, organizację oraz pola widoczne
+lub redagowane. Aktualnie jedynym takim modelem jest szkieletowe konto `User` (globalne, bez organizacji).
+Imię/nazwa, e-mail, hasło (także hash) i token pamiętania są redagowane. Data weryfikacji pozostaje widoczna.
+Pozostałe kolumny techniczne, w tym `updated_at`, nie generują historii zmian. Klasyfikacja ogólna E1.7
+rozwinie tę politykę; nowe pola biznesowe trzeba jawnie przypisać do jednej z list.
+
+Zapis/edycja/usunięcie instancji i wpis audytu są jedną transakcją. Przy edycji pobierany jest aktualny
+stan wiersza z blokadą `FOR UPDATE`, więc stara instancja modelu nie podaje nieaktualnej wartości „przed”.
+Brak zmian pól audytowanych nie tworzy wpisu. Porównanie odbywa się przed redakcją: zmiana sekretu
+zostawia fakt zmiany, mimo że obie wartości pokazują `[REDACTED]`. Tworzenie ma domyślny powód
+`record.created`; edycja i usuwanie wymagają jawnego `AuditReason::because(...)`. Powód wraca do
+poprzedniego po bloku, również po wyjątku. Nie jest parametrem klienta nadawanym automatycznie przez HTTP.
+
+Mechanizm obejmuje `save`, `update` instancji, `delete` i warianty quiet. Surowy SQL, masowe operacje
+buildera, `increment` oraz `saveOrIgnore` nie są objęte tym kontraktem: w audytowanym kodzie biznesowym
+nie wolno zastępować nimi zapisu instancji bez osobnej, atomowej operacji audytu. Nie ma obecnie takich
+operacji biznesowych na User. `AuditEntry` nie używa traitu, aby nie audytować audytu rekurencyjnie.
+Operacje na innym połączeniu oraz zmiana klucza istniejącego modelu są odrzucane. Po błędzie transakcji
+trzeba odczytać model ponownie przed dalszą pracą; obiekt PHP nie jest snapshotem bazy.
+
+E1.3 dodaje tylko nullable JSON `before_values` i `after_values`. Stare wpisy pozostają niezmienione.
+Wycofanie kodu zachowuje kolumny; `down()` odmawia ich usunięcia, jeśli zawierają historię.
+Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać właściwą organizację.

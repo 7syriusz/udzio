@@ -85,8 +85,8 @@ payloadu żądania. Szczegóły uprawnień migracji, granica ochrony SQL i wycof
 
 ## 7. Audyt zmian instancji modelu (E1.3)
 
-Model korzystający z `AuditsChanges` deklaruje `auditSubjectType`, `auditOrganizationId`,
-`auditVisibleFields` i `auditRedactedFields`. Powód zmiany obejmuje cały blok operacji:
+Model korzystający z `AuditsChanges` deklaruje `auditSubjectType`, `auditOrganizationId`
+i klasyfikację pól `dataClassification()` (od E1.7, §11). Powód zmiany obejmuje cały blok operacji:
 
 ```php
 $reason->because('user requested profile correction', fn () => $user->update($validated));
@@ -143,3 +143,21 @@ $response->definitionVersion->content;                              // interpret
 ```
 
 Nie czytaj bieżącego szkicu definicji, żeby zinterpretować stary wynik. Szczegóły: Z-016.
+
+## 11. Klasyfikacja danych (E1.7)
+
+Każdy model audytowany implementuje `App\Domain\Platform\Classification\ClassifiesData`:
+`dataClassification()` zwraca `pole => DataClass` (PUBLIC, INTERNAL, RESTRICTED, SECRET, SPECIAL CATEGORY).
+Zapis pola bez klasy jest odrzucany (poza kluczem i znacznikami czasu). O skutkach klasy decyduje
+`config/data_classification.php`, nie model:
+
+| Klasa | Wartość w audycie zmian | Audyt odczytu | Eksport |
+|---|---|---|---|
+| PUBLIC, INTERNAL | tak | nie | wartość |
+| RESTRICTED | `[REDACTED]` | nie | wartość |
+| SPECIAL CATEGORY | `[REDACTED]` | tak | `[REDACTED]` |
+| SECRET | `[REDACTED]` | tak | pominięte |
+
+Eksport przepuszcza wartości przez `ClassifiedData::forExport($model, $values)`. Po wyświetleniu pól
+wywołaj `RecordProtectedRead::forModel($model, $fields, $cel)` — zapisze odczyt, jeśli klasa tego wymaga.
+Scenariusz może podnieść klasę pola (np. członkostwo polityczne → SPECIAL CATEGORY). Szczegóły: Z-017.

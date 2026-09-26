@@ -4,19 +4,24 @@ namespace App\Domain\Platform\Concerns;
 
 use App\Domain\Platform\Actions\RecordAudit;
 use App\Domain\Platform\AuditReason;
+use App\Domain\Platform\Classification\ClassifiedData;
+use App\Domain\Platform\Classification\ClassifiesData;
+use App\Domain\Platform\Enums\DataClass;
 use LogicException;
 
+/** Models using this trait must implement ClassifiesData. */
 trait AuditsChanges
 {
     abstract public function auditSubjectType(): string;
 
     abstract public function auditOrganizationId(): ?string;
 
-    /** @return list<string> */
-    abstract public function auditVisibleFields(): array;
-
-    /** @return list<string> */
-    abstract public function auditRedactedFields(): array;
+    /**
+     * Every written field must be classified (A5 §12); the class decides how it appears in the audit.
+     *
+     * @return array<string, DataClass>
+     */
+    abstract public function dataClassification(): array;
 
     /** @param array<string, mixed> $options */
     public function save(array $options = []): bool
@@ -58,11 +63,19 @@ trait AuditsChanges
 
     private function assertAuditConnection(): void
     {
+        if (! $this instanceof ClassifiesData) {
+            throw new LogicException(static::class.' must implement '.ClassifiesData::class.'.');
+        }
         if ($this->getConnection()->getName() !== config('database.default')) {
             throw new LogicException('Audited models must use the audit business connection.');
         }
         if ($this->exists && $this->isDirty($this->getKeyName())) {
             throw new LogicException('An audited identity cannot be changed.');
+        }
+        $technical = [$this->getKeyName(), $this->getCreatedAtColumn(), $this->getUpdatedAtColumn()];
+        $unclassified = array_diff(array_keys($this->getDirty()), array_keys($this->dataClassification()), $technical);
+        if ($unclassified !== []) {
+            throw new LogicException('Unclassified fields cannot be written: '.implode(', ', $unclassified).'.');
         }
     }
 
@@ -71,17 +84,17 @@ trait AuditsChanges
     {
         $previousValues = [];
         $newValues = [];
-        $redacted = $this->auditRedactedFields();
-        foreach (array_unique([...$this->auditVisibleFields(), ...$redacted]) as $field) {
+        foreach (array_keys($this->dataClassification()) as $field) {
             $previous = $before[$field] ?? null;
             $next = $after[$field] ?? null;
             if ($operation === 'updated' && $previous === $next) {
                 continue;
             }
-            $hide = in_array($field, $redacted, true);
-            $previousValues[$field] = $hide && $previous !== null ? '[REDACTED]' : $previous;
-            $newValues[$field] = $hide && $next !== null ? '[REDACTED]' : $next;
+            $previousValues[$field] = $previous;
+            $newValues[$field] = $next;
         }
+        $previousValues = ClassifiedData::forAudit($this, $previousValues);
+        $newValues = ClassifiedData::forAudit($this, $newValues);
         if ($previousValues === []) {
             return;
         }

@@ -3,7 +3,9 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
+use App\Domain\Platform\Enums\DataClass;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -13,7 +15,7 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements ClassifiesData
 {
     /** @use HasFactory<UserFactory> */
     use AuditsChanges, HasFactory, Notifiable;
@@ -28,14 +30,15 @@ class User extends Authenticatable
         return null;
     }
 
-    public function auditVisibleFields(): array
+    public function dataClassification(): array
     {
-        return ['email_verified_at'];
-    }
-
-    public function auditRedactedFields(): array
-    {
-        return ['name', 'email', 'password', 'remember_token'];
+        return [
+            'name' => DataClass::Restricted,
+            'email' => DataClass::Restricted,
+            'email_verified_at' => DataClass::Internal,
+            'password' => DataClass::Secret,
+            'remember_token' => DataClass::Secret,
+        ];
     }
 
     /**

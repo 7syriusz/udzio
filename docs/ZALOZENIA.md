@@ -151,3 +151,19 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
   Powód nie jest wymagany, bo publikacja nie zmienia istniejących wyników.
 - **Weryfikacja:** modele testowe `DefinitionProbe` i `DefinitionResultProbe`; 9 nowych przypadków, w tym
   test współbieżności publikacji. Migracje testowe mają datę `9999_…`, żeby zawsze działały po migracjach aplikacji.
+
+## Z-017 — Klasyfikacja danych i polityki klas (E1.7, funkcjonalne, 2026-09-26)
+
+- **Metadane pól:** klasa jest przypisana do pola modelu (`dataClassification()`). Model audytowany musi
+  sklasyfikować każde zapisywane pole; pole bez klasy nie trafia ani do audytu, ani do eksportu.
+- **F — domyślne polityki** (`config/data_classification.php`, do przeglądu przez Jakuba):
+  - PUBLIC i INTERNAL: wartości w audycie, eksport pełny;
+  - RESTRICTED (np. imię, e-mail): w audycie tylko fakt zmiany (`[REDACTED]`), eksport pełny dla uprawnionych;
+  - SPECIAL CATEGORY (np. przynależność polityczna, zdrowie): w audycie `[REDACTED]`, odczyt audytowany,
+    w eksporcie `[REDACTED]`;
+  - SECRET (np. hasło, token, tajny głos): w audycie `[REDACTED]`, odczyt audytowany, w eksporcie pominięte.
+- **Klasa ustalana przez scenariusz:** Core daje domyślną klasę pola; scenariusz może ją podnieść
+  (A5 §12). Konfiguracja klas per scenariusz powstanie razem z pierwszym scenariuszem, który tego potrzebuje.
+- **Poza zakresem E1.7:** szyfrowanie danych w spoczynku, retencja i anonimizacja (późniejsze etapy),
+  uprawnienie do eksportu danych SPECIAL CATEGORY bez redakcji (E3, ROLE/PERMISSION).
+- **Weryfikacja:** 7 nowych przypadków; pełny zestaw 82 testy / 252 asercje, także w losowej kolejności.

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Exceptions\AuditAccessDenials;
 use App\Http\Middleware\ResolveActor;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -16,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(ResolveActor::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(new AuditAccessDenials);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

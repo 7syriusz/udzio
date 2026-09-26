@@ -237,3 +237,20 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
   `AuditedUserProvider` z jawnym powodem technicznym; wartości SECRET są redagowane.
 - **Weryfikacja:** 9 nowych przypadków; zestaw po zmianie tabeli `users` (zamiast `name`: `given_name`,
   `family_name`, `person_id`).
+
+## Z-022 — Weryfikacja e-maila konta i automatyczne powiązanie z PERSON (E2.4, funkcjonalne, 2026-09-26)
+
+- **Weryfikacja:** podpisany link Fortify/Laravel (ważny 60 min), wysyłany po rejestracji; ponowne wysłanie
+  z ekranu `/email/verify`. Potwierdzenie jest audytowane z powodem.
+- **F — reguła powiązania** (`ResolveAccountPerson`, uruchamiana zdarzeniem `Verified`):
+  - brak osoby z tym samym **zweryfikowanym**, aktywnym kontaktem e-mail → nowa PERSON z danych
+    rejestracji + zweryfikowany kontakt e-mail;
+  - dokładnie jedna taka osoba bez konta → konto dołącza do niej; jej tożsamość i historia bez zmian (A5-02);
+  - kilka osób albo osoba z innym kontem → **konflikt**: nic nie jest łączone ani tworzone, wpis audytu
+    `account.person_link_conflict` (wynik `failed`) do ręcznego rozstrzygnięcia (operator / MERGE).
+    Do tego czasu konto działa bez PERSON.
+- **Bez weryfikacji nie ma powiązania:** niezweryfikowany kontakt nigdy nie powoduje dołączenia; konto
+  z niezweryfikowanym e-mailem nie jest łączone.
+- **Do przeglądu przez Jakuba:** czy przy konflikcie użytkownik ma widzieć komunikat i ścieżkę zgłoszenia
+  (ekran w E2.8), czy wystarczy obsługa przez operatora.
+- **Weryfikacja:** 8 nowych przypadków.

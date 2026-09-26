@@ -19,6 +19,6 @@ class AuditedUserProvider extends EloquentUserProvider
 
     public function rehashPasswordIfRequired(UserContract $user, #[\SensitiveParameter] array $credentials, bool $force = false): void
     {
-        app(AuditReason::class)->because('password hash upgraded on login', fn () => parent::rehashPasswordIfRequired($user, $credentials, $force));
+        app(AuditReason::class)->because('password hash recomputed', fn () => parent::rehashPasswordIfRequired($user, $credentials, $force));
     }
 }

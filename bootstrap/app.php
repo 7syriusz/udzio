@@ -6,6 +6,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\AuthenticateSession;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(ResolveActor::class);
+        // Ends sessions whose password hash is outdated (logout of other devices, password reset).
+        $middleware->web(append: AuthenticateSession::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(new AuditAccessDenials);

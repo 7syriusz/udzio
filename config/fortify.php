@@ -165,6 +165,7 @@ return [
     // two-factor E2.6, profile and password screens E2.8. Passkeys are not planned yet.
     'features' => [
         Features::registration(),
+        Features::resetPasswords(),
         Features::emailVerification(),
     ],
 

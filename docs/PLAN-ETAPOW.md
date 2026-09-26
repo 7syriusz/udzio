@@ -118,3 +118,5 @@ Etapy E3–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nic
 - E1 zamknięty: CI na `main` zielone dla wszystkich scaleń E1 (ostatnie: przebieg `36239051281`); tag `e1-zamkniety` na `a59d850`.
 - E2.3 scalony do `main`: `4ef0447` (CI gałęzi zielone).
 - E2.4: weryfikacja e-maila konta (Fortify, podpisany link) i automatyczne powiązanie z PERSON: jedna osoba ze zweryfikowanym kontaktem → dołączenie z zachowaniem historii; brak → nowa osoba ze zweryfikowanym kontaktem; niejednoznaczność → konflikt w audycie bez powiązania. 8 nowych przypadków. Pełny zestaw: **132 testy / 409 asercji**, także w losowej kolejności. Założenia: Z-022.
+- E2.4 scalony do `main`: `eb8b3a3` (CI gałęzi zielone).
+- E2.5: reset hasła (Fortify, widoki, neutralna odpowiedź bez ujawniania kont), zakończenie wszystkich sesji i tokenu „zapamiętaj mnie” po resecie, limit logowania 5/min, regeneracja sesji, „wyloguj pozostałe urządzenia” z hasłem i `AuthenticateSession`, audyt zapisów frameworka. 7 nowych przypadków. Pełny zestaw: **139 testów / 463 asercje**, także w losowej kolejności. Założenia: Z-023.

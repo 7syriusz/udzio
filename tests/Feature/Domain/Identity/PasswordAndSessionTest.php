@@ -67,7 +67,7 @@ class PasswordAndSessionTest extends TestCase
             ['password reset by e-mail link', 'sessions ended after password reset', 'remember token rotated after password reset'],
             AuditEntry::query()->where('action', 'account.updated')->orderBy('id')->pluck('reason')->all(),
         );
-        $this->post('/login', ['email' => 'anna@example.test', 'password' => self::NEW])->assertRedirect('/');
+        $this->post('/login', ['email' => 'anna@example.test', 'password' => self::NEW])->assertRedirect('/account');
     }
 
     public function test_reset_with_an_invalid_token_changes_nothing(): void

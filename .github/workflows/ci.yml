@@ -51,3 +51,34 @@ jobs:
       - run: composer install --no-interaction --no-progress --prefer-dist
       - run: cp .env.example .env && php artisan key:generate
       - run: php artisan test
+
+  docker:
+    name: Obraz produkcyjny (build + test dymny)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Konfiguracja testowa .env.production
+        run: |
+          sed -e "s#^APP_KEY=#APP_KEY=base64:$(openssl rand -base64 32)#" \
+              -e "s#^DB_PASSWORD=#DB_PASSWORD=$(openssl rand -hex 16)#" \
+              -e "s#^DB_ROOT_PASSWORD=#DB_ROOT_PASSWORD=$(openssl rand -hex 16)#" \
+              -e "s#^WEB_PORT=80#WEB_PORT=8080#" \
+              -e "s#^APP_URL=.*#APP_URL=http://localhost:8080#" \
+              .env.production.example > .env.production
+      - name: Budowa obrazów
+        run: docker compose -f compose.production.yaml --env-file .env.production build
+      - name: Start stosu i migracje
+        run: |
+          docker compose -f compose.production.yaml --env-file .env.production up -d
+          for i in $(seq 1 60); do docker compose -f compose.production.yaml --env-file .env.production ps --format '{{.Service}} {{.Health}}' | grep -q "mysql healthy" && break; sleep 3; done
+          docker compose -f compose.production.yaml --env-file .env.production exec -T app php artisan migrate --force
+      - name: Test dymny
+        run: |
+          for i in $(seq 1 30); do [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/up)" = 200 ] && break; sleep 2; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/up)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/.env)" = 403
+          docker compose -f compose.production.yaml --env-file .env.production ps
+      - name: Logi przy błędzie
+        if: failure()
+        run: docker compose -f compose.production.yaml --env-file .env.production logs --tail=100

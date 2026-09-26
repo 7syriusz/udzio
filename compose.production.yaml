@@ -1,0 +1,68 @@
+name: udzio-prod
+
+# Produkcja (VPS): docker compose -f compose.production.yaml --env-file .env.production up -d --build
+# Sekrety wyłącznie w .env.production na serwerze (wzór: .env.production.example).
+# HTTPS (certbot) dochodzi w etapie E12; tutaj nginx nasłuchuje na HTTP.
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/production/Dockerfile
+    target: app
+  image: udzio-app:latest
+  restart: unless-stopped
+  env_file: .env.production
+  environment:
+    DB_HOST: mysql
+    DB_PORT: 3306
+  volumes:
+    - storage:/var/www/html/storage
+  depends_on:
+    mysql:
+      condition: service_healthy
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      TZ: UTC
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    <<: *app
+
+  queue:
+    <<: *app
+    command: ["php", "artisan", "queue:work", "--tries=3", "--max-time=3600"]
+
+  scheduler:
+    <<: *app
+    command: ["php", "artisan", "schedule:work"]
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/production/Dockerfile
+      target: web
+    image: udzio-web:latest
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      - app
+
+volumes:
+  mysql-data:
+  storage:

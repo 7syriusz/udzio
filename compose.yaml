@@ -1,3 +1,5 @@
+name: udzio
+
 # Lokalne środowisko deweloperskie: MySQL 8.4 (ta sama wersja co na produkcji).
 # PHP działa bezpośrednio w WSL. Uruchomienie: docker compose up -d
 # Hasła poniżej służą wyłącznie do pracy lokalnej.

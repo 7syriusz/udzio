@@ -29,6 +29,16 @@ z własnymi połączeniami MySQL: `tests/Support/Concurrency/Race.php`.
 CI (GitHub Actions) przy każdym pushu sprawdza styl (Pint) i uruchamia testy na MySQL 8.4.
 Nie scalamy do `main` przy czerwonym CI.
 
+## Produkcja (Docker)
+
+```bash
+cp .env.production.example .env.production   # uzupełnić sekrety na serwerze
+docker compose -f compose.production.yaml --env-file .env.production up -d --build
+docker compose -f compose.production.yaml --env-file .env.production exec app php artisan migrate --force
+```
+
+CI buduje obrazy i wykonuje test dymny stosu (`/up`, strona główna, blokada `/.env`).
+
 ## Dokumentacja
 
 - Specyfikacja nadrzędna: [docs/specifications/E1E2E3A5Skalik.md](docs/specifications/E1E2E3A5Skalik.md)

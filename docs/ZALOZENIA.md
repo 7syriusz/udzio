@@ -254,3 +254,20 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **Do przeglądu przez Jakuba:** czy przy konflikcie użytkownik ma widzieć komunikat i ścieżkę zgłoszenia
   (ekran w E2.8), czy wystarczy obsługa przez operatora.
 - **Weryfikacja:** 8 nowych przypadków.
+
+## Z-023 — Reset hasła, limity prób i sesje (E2.5, techniczne + funkcjonalne, 2026-09-26)
+
+- **Reset hasła:** link e-mail Fortify (token ważny 60 min, kolejny link dla tego samego konta najwcześniej po
+  60 s — `config/auth.php`). Po resecie kończą się **wszystkie** sesje konta i token „zapamiętaj mnie”.
+- **F — brak ujawniania kont:** formularz „Nie pamiętam hasła” odpowiada tym samym komunikatem, gdy konto
+  istnieje, nie istnieje albo prośba jest zbyt częsta (`NeutralPasswordResetLinkResponse`).
+- **F — limit logowania:** 5 prób na minutę dla pary e-mail + adres IP (Fortify, `FortifyServiceProvider`);
+  potem 429. Limit prób kodu MFA — E2.6.
+- **Sesje:** identyfikator sesji zmienia się po zalogowaniu (Fortify). Middleware `AuthenticateSession`
+  kończy sesje ze starym skrótem hasła. „Wyloguj pozostałe urządzenia” (`DELETE /user/other-sessions`)
+  wymaga hasła i zostawia bieżącą sesję; zmiana hasła przez właściciela (ekran w E2.8) także kończy
+  pozostałe sesje.
+- **F — czas sesji:** 120 min bezczynności (domyślne Laravel, `SESSION_LIFETIME`); ciasteczko `secure`
+  na produkcji, `http_only`, `SameSite=Lax`.
+- **Audyt:** każdy zapis konta wykonany przez framework ma powód (reset, rotacja tokenu, przeliczenie skrótu).
+- **Weryfikacja:** 7 nowych przypadków.

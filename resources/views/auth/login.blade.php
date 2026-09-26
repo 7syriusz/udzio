@@ -12,6 +12,9 @@
     </label>
     <button type="submit" class="w-full rounded bg-blue-700 px-4 py-2 font-medium text-white">Zaloguj</button>
 </form>
+@if (Route::has('password.request'))
+    <p class="mt-4 text-sm"><a class="text-blue-700 underline" href="{{ route('password.request') }}">Nie pamiętam hasła</a></p>
+@endif
 @if (Route::has('register'))
     <p class="mt-6 text-sm">Nie masz konta? <a class="text-blue-700 underline" href="{{ route('register') }}">Załóż konto</a></p>
 @endif

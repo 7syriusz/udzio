@@ -132,3 +132,22 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **Pierwsze użycia:** reprezentacja (E2.7) i członkostwo (E3). W E1.5 wzorzec jest sprawdzany na modelu
   testowym `Tests\Fixtures\ValidityProbe` (migracja w `tests/Fixtures/migrations`, ładowana tylko w testach).
   Weryfikacja: 9 nowych przypadków, w tym test współbieżności (dwa procesy, jeden okres otwarty).
+
+## Z-016 — Definicja → wersja → wynik (E1.6, techniczne + funkcjonalne, 2026-09-26)
+
+- **Wspólna tabela wersji:** `definition_versions` przechowuje zamrożoną kopię (`content`, JSON) każdej
+  opublikowanej definicji dowolnego typu (`definition_type` = typ SUBJECT-u definicji). Wersje są tylko do
+  dopisywania (ochrona w PHP i wyzwalacze MySQL, jak w audycie). Wynik wskazuje `definition_version_id`
+  z kluczem obcym `restrictOnDelete` i nie może go zmienić (A5-11, A5-16). Jeśli moduł będzie potrzebował
+  relacyjnej struktury wersji (np. pola formularza), może dodać własne tabele podrzędne wobec wersji.
+- **Szkic i publikacja:** model definicji jest edytowalnym szkicem. Wynik powstaje tylko według wersji
+  opublikowanej przez `publishVersion()`. Numeracja 1, 2, 3… bez luk dla jednej definicji (blokada wiersza
+  definicji; test współbieżności).
+- **F — ponowna publikacja bez zmian nie tworzy wersji:** identyczna treść (skrót SHA-256 kanonicznego JSON,
+  klucze posortowane, kolejność list zachowana) zwraca ostatnią wersję. Zmiana: `HasVersions::publishVersion`.
+- **F — wersja obowiązująca w chwili:** `versionAt($chwila)` to ostatnia wersja opublikowana do tej chwili.
+  Publikacja z datą przyszłą ani wsteczną nie jest w E1.6 obsługiwana.
+- **Audyt:** publikacja zapisuje `<typ>.version_published` z numerem i skrótem, wykonawcę i (opcjonalnie) powód.
+  Powód nie jest wymagany, bo publikacja nie zmienia istniejących wyników.
+- **Weryfikacja:** modele testowe `DefinitionProbe` i `DefinitionResultProbe`; 9 nowych przypadków, w tym
+  test współbieżności publikacji. Migracje testowe mają datę `9999_…`, żeby zawsze działały po migracjach aplikacji.

@@ -53,7 +53,7 @@ Lokalnie PHP 8.3 działa bezpośrednio w WSL, a MySQL 8.4 (ta sama wersja co na 
 | E0.3 | CI GitHub Actions: Pint + testy na MySQL 8.4 przy każdym pushu i PR | Zielony przebieg CI na `main` | Cały zestaw w CI | 90 min |
 | E0.4 | Mechanizm testów współbieżności (dwa niezależne procesy PHP) + test przykładowy | Test udowadnia, że dwa procesy czekały na tę samą blokadę | Test współbieżności na MySQL | 120 min |
 | E0.5 | Architektura modułowa: katalogi domen, konwencje (ID, kwoty w groszach, czas UTC), `docs/ARCHITEKTURA.md`, test architektury | Konwencje zapisane i sprawdzane testem | Test architektury | 90 min |
-| E0.6 | Obraz produkcyjny Docker (PHP-FPM, nginx), `docker-compose.prod.yml`, budowa obrazu w CI | Obraz buduje się w CI | Budowa obrazu i test zdrowia `/up` w CI | 120 min |
+| E0.6 | Obraz produkcyjny Docker (PHP-FPM, nginx), `compose.production.yaml`, budowa obrazu w CI | Obraz buduje się w CI | Budowa obrazu i test zdrowia `/up` w CI | 120 min |
 | E0.7 | Zamknięcie E0: instrukcja uruchomienia, przegląd, tag `e0-zamkniety` | Nowa osoba uruchamia projekt według README | Pełny zestaw lokalnie i w CI | 60 min |
 
 ## E1 — Zasady platformy (A5 §1.4, §2.3, §10, §11, §12; A5-03, A5-04, A5-05, A5-11, A5-14, A5-16)
@@ -85,3 +85,10 @@ Lokalnie PHP 8.3 działa bezpośrednio w WSL, a MySQL 8.4 (ta sama wersja co na 
 | E2.9 | Zamknięcie E2: testy A5-01/02/03, dokumentacja, tag `e2-zamkniety` | Tożsamość gotowa pod organizacje (E3) | Pełny zestaw lokalnie i w CI | 60 min |
 
 Etapy E3–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nich.
+
+## Postęp wykonania
+
+- 2026-09-26: E0.0–E0.6 ukończone; punkt wejścia E0.7: `1322651`, CI zielone (przebieg `36206144509`).
+- E0.7: poprawiona kolejność uruchomienia z czystego klonu, opis zależności, budowania frontendu i ochrony danych. Pełny zestaw lokalny: **11 testów, 20 asercji**, MySQL 8.4. Zamknięcie potwierdza tag `e0-zamkniety`, nadawany po zielonym CI gałęzi.
+- Użytkownik zlecił przejście z E0 do E1 w tej samej pracy; osobne pytanie o tę granicę nie jest wymagane.
+- E0.7: czysta kopia kodu w `/tmp` — instalacja Composer/npm, build, 11 testów / 20 asercji oraz HTTP `/` i `/up`: 200. Pierwsze CI gałęzi (`36207359502`) nie przeszło startu/migracji; szczegółowy log wymaga dostępu GitHub. Lokalnie potwierdzono start kolejki przed powstaniem tabel. Rozdzielono start MySQL, jednorazową migrację i uruchomienie procesów aplikacji; wynik ponownego CI jest warunkiem scalenia.

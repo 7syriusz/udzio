@@ -185,3 +185,18 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **F — czas przechowywania kluczy:** bez wygasania w E1.8. Czyszczenie starych kluczy (np. po 30 dniach)
   dojdzie z zadaniami utrzymaniowymi (E12); kolumna `created_at` ma indeks.
 - **Weryfikacja:** 7 nowych przypadków, w tym test współbieżności (dwa procesy, operacja wykonana raz).
+
+## Z-019 — PERSON (E2.1, funkcjonalne, 2026-09-26)
+
+- **Globalna tożsamość:** tabela `people` nie ma kolumny organizacji ani scenariusza. Kontekst (członkostwo,
+  zapis, rola) wskazuje osobę przez relację, więc nowy kontekst nie tworzy drugiej PERSON (A5-01).
+  Widoczność danych osoby ograniczy SCOPE/CONTEXT (E3).
+- **F — dane podstawowe:** imię, nazwisko (wymagane), data urodzenia (opcjonalna, `RRRR-MM-DD`,
+  od 1900 r. do dziś). Wszystkie RESTRICTED: audyt zapisuje fakt zmiany, nie wartość. Dodatkowe pola
+  (płeć, PESEL, adres) dopiero, gdy wymaga ich scenariusz — z własną klasą danych (PESEL co najmniej RESTRICTED).
+- **F — brak automatycznego dopasowania:** rejestracja zawsze tworzy nową PERSON. Te same imię, nazwisko
+  i data urodzenia mogą należeć do dwóch osób, a błędne połączenie jest trudne do odwrócenia. Rozpoznanie
+  przez zweryfikowany kontakt/konto — E2.4; łączenie duplikatów — MERGE (A5-13, późniejszy etap).
+  Zmiana: `RegisterPerson`.
+- **Identyfikator:** publiczny ULID (`public_id`) jest niezmienny; na zewnątrz nigdy wewnętrzne `id`.
+- **Weryfikacja:** 10 nowych przypadków (w tym 4 warianty walidacji).

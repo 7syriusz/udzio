@@ -6,6 +6,7 @@ auth.json
 
 # Zrzuty baz danych i archiwa
 *.sql
+!docker/mysql/init/*.sql
 *.sql.gz
 *.zip
 
@@ -41,3 +42,4 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+!.env.production.example

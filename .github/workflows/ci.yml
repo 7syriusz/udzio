@@ -70,7 +70,7 @@ jobs:
       - name: Start stosu i migracje
         run: |
           docker compose -f compose.production.yaml --env-file .env.production up -d --wait mysql
-          docker compose -f compose.production.yaml --env-file .env.production run --rm --no-deps app php artisan migrate --force
+          docker compose -f compose.production.yaml --env-file .env.production run --rm --no-deps migrate
           docker compose -f compose.production.yaml --env-file .env.production up -d
       - name: Test dymny
         run: |

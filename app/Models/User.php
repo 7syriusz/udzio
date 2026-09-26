@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Domain\Identity\Models\Person;
+use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
 use App\Domain\Platform\Enums\DataClass;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +18,7 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['given_name', 'family_name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
-class User extends Authenticatable implements ClassifiesData
+class User extends Authenticatable implements ClassifiesData, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use AuditsChanges, HasFactory, Notifiable;
@@ -46,6 +47,11 @@ class User extends Authenticatable implements ClassifiesData
             'two_factor_recovery_codes' => DataClass::Secret,
             'two_factor_confirmed_at' => DataClass::Internal,
         ];
+    }
+
+    public function markEmailAsVerified(): bool
+    {
+        return app(AuditReason::class)->because('account e-mail verified by signed link', fn () => $this->forceFill(['email_verified_at' => $this->freshTimestamp()])->save());
     }
 
     /** The PERSON this account gives access to; null until linked (E2.4). */

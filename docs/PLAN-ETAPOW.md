@@ -41,13 +41,15 @@ Razem ok. 26–35 tygodni (6–8 miesięcy) przy jednym programiście pracujący
 
 ## E0 — Fundament techniczny
 
-Na komputerze deweloperskim nie ma Dockera ani uprawnień administratora. Lokalnie pracujemy więc na PHP 8.3 i prywatnej instancji MySQL 8. Docker (obraz produkcyjny) i MySQL 8.4 (wersja produkcyjna) są sprawdzane w CI na GitHub Actions.
+Lokalnie PHP 8.3 działa bezpośrednio w WSL, a MySQL 8.4 (ta sama wersja co na produkcji) w `docker compose` (Docker zainstalowany 2026-09-26, Z-003). CI na GitHub Actions uruchamia testy na MySQL 8.4 i buduje obraz produkcyjny.
 
 | Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
 |---|---|---|---|---|
 | E0.0 | Plan, specyfikacja A5 w repozytorium, rejestr założeń | `docs/` w `main` | — (tylko dokumenty) | 60 min |
 | E0.1 | Szkielet Laravel 13 (PHP 8.3), Pint, strona startowa, polski język i strefa czasowa | Aplikacja startuje; `php artisan test` zielony | Testy startowe frameworka | 90 min |
-| E0.2 | Lokalna baza MySQL 8: skrypt prywatnej instancji, `.env.example`, testy domyślnie na MySQL, strażnik bazy testowej | Testy działają na MySQL; uruchomienie poza bazą testową jest zablokowane | Test strażnika, pełny zestaw na MySQL | 120 min |
+| E0.1a | Poprawka: przywrócenie `.gitignore` katalogów Laravela, usunięcie plików generowanych z repozytorium | Czysty klon bez plików generowanych, z kompletem katalogów | Testy startowe | 30 min |
+| E0.1b | Laravel Boost (zainstalowany przez Krzysztofa dla Codex) — zatwierdzenie w repozytorium, aktualizacja założeń Z-003 i Z-005 | Boost w `main` | Testy startowe | 30 min |
+| E0.2 | Lokalna baza MySQL 8.4 w `docker compose` (baza aplikacji i osobna testowa), `.env.example`, testy domyślnie na MySQL, strażnik bazy testowej | Testy działają na MySQL; uruchomienie poza bazą testową jest zablokowane | Test strażnika, pełny zestaw na MySQL | 120 min |
 | E0.3 | CI GitHub Actions: Pint + testy na MySQL 8.4 przy każdym pushu i PR | Zielony przebieg CI na `main` | Cały zestaw w CI | 90 min |
 | E0.4 | Mechanizm testów współbieżności (dwa niezależne procesy PHP) + test przykładowy | Test udowadnia, że dwa procesy czekały na tę samą blokadę | Test współbieżności na MySQL | 120 min |
 | E0.5 | Architektura modułowa: katalogi domen, konwencje (ID, kwoty w groszach, czas UTC), `docs/ARCHITEKTURA.md`, test architektury | Konwencje zapisane i sprawdzane testem | Test architektury | 90 min |

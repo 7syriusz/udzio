@@ -284,3 +284,23 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
   z potwierdzonym MFA; pozostałe dostają 403 (audytowane jako odmowa). Do tras administracyjnych dołączane
   od E3, gdy powstaną role. Ekran włączania MFA — E2.8.
 - **Weryfikacja:** 8 nowych przypadków.
+
+## Z-025 — Działanie w imieniu (reprezentacja) (E2.7, funkcjonalne, 2026-09-26)
+
+- **Relacja w czasie:** `representations` (wzorzec E1.5) — przedstawiciel PERSON → reprezentowana PERSON,
+  rodzaj (`guardian` — rodzic/opiekun prawny, `authorized` — upoważnienie), jawna lista zakresów, okres,
+  status i historia. Zmiana zakresów otwiera nowy okres; zakończenie zamyka okres i od tej chwili odbiera dostęp.
+- **F — zakresy:** `profile.view`, `profile.update`, `contacts.view`, `contacts.manage`,
+  `registrations.manage`, `payments.manage`, `consents.manage`. Reprezentacja daje tylko wymienione zakresy
+  (A5 §1.4). Kolejne etapy dopisują własne zakresy do `RepresentationScope`.
+- **Sprawdzenie:** `ActOnBehalf` — osoba działa za siebie bez reprezentacji; za kogoś innego tylko przy
+  aktywnej (w tej chwili) reprezentacji z danym zakresem. Odmowa = `AccessDenied` z SUBJECT-em
+  reprezentowanej osoby (audyt E1.4). Działanie jest audytowane wpisem `person.acted_on_behalf`
+  (reprezentacja, przedstawiciel, zakres) obok zwykłego audytu zmiany: ACTOR = konto przedstawiciela,
+  SUBJECT = osoba reprezentowana (A5-03).
+- **F — kto nadaje reprezentację:** `GrantRepresentation` nie sprawdza uprawnień wywołującego. W E2 nadaje ją
+  operator lub zaufany proces (np. zapis dziecka przez rodzica w E5). Samodzielne zgłoszenie opiekuństwa
+  przez użytkownika i jego weryfikacja — do decyzji przy E3/E5 (uprawnienia) — **do przeglądu przez Jakuba**.
+- **Kierunek:** reprezentacja działa w jedną stronę; osoba nie reprezentuje samej siebie; konto bez PERSON nie
+  reprezentuje nikogo.
+- **Weryfikacja:** 8 nowych przypadków.

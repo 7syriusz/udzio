@@ -24,7 +24,9 @@ final class ValidityColumns
         $table->dateTime('valid_to', 6)->nullable();
         $key = 'CONCAT_WS(\'|\', '.implode(', ', array_map(fn ($c) => "`{$c}`", $keyColumns)).')';
         $table->string('open_key', 512)->nullable()->storedAs("CASE WHEN `valid_to` IS NULL THEN {$key} END");
-        $table->unique('open_key');
-        $table->index([...$keyColumns, 'valid_from']);
+        // Explicit short names: generated names from long key columns exceed MySQL's 64-character limit.
+        // The guard in HasValidityPeriod recognizes the conflict by the `open_key` fragment of the name.
+        $table->unique('open_key', substr($table->getTable(), 0, 40).'_open_key_unique');
+        $table->index([...$keyColumns, 'valid_from'], substr($table->getTable(), 0, 40).'_validity_index');
     }
 }

@@ -2,12 +2,14 @@
 
 namespace Tests\Fixtures;
 
+use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
 use App\Domain\Platform\Concerns\HasVersions;
+use App\Domain\Platform\Enums\DataClass;
 use Illuminate\Database\Eloquent\Model;
 
 /** Test definition (e.g. a scoring rule) for the versioning pattern (E1.6). */
-class DefinitionProbe extends Model
+class DefinitionProbe extends Model implements ClassifiesData
 {
     use AuditsChanges, HasVersions;
 
@@ -37,13 +39,12 @@ class DefinitionProbe extends Model
         return $this->organization_ref;
     }
 
-    public function auditVisibleFields(): array
+    public function dataClassification(): array
     {
-        return ['name', 'rules'];
-    }
-
-    public function auditRedactedFields(): array
-    {
-        return [];
+        return [
+            'organization_ref' => DataClass::Internal,
+            'name' => DataClass::Internal,
+            'rules' => DataClass::Internal,
+        ];
     }
 }

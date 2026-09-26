@@ -14,6 +14,6 @@ foreach ([getenv('DB_DATABASE'), $_SERVER['DB_DATABASE'] ?? null, $_ENV['DB_DATA
 }
 
 if (getenv('DB_CONNECTION') !== 'mysql') {
-    fwrite(STDERR, "Odmowa uruchomienia testów: wymagany MySQL (DB_CONNECTION=".getenv('DB_CONNECTION').").\n");
+    fwrite(STDERR, 'Odmowa uruchomienia testów: wymagany MySQL (DB_CONNECTION='.getenv('DB_CONNECTION').").\n");
     exit(1);
 }

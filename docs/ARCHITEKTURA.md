@@ -188,3 +188,17 @@ publiczne identyfikatory. Szczegóły: Z-018.
    `RecordProtectedRead::forModel` (§8).
 7. Operacja ilościowa lub na wspólnym zasobie: test współbieżności `Race` (§3).
 8. Kryterium A5: wpis w [A5-POKRYCIE.md](A5-POKRYCIE.md).
+
+## 14. Tożsamość (E2, moduł `Identity`)
+
+| Pojęcie A5 | Kod | Uwagi |
+|---|---|---|
+| PERSON | `Identity\Models\Person`, `RegisterPerson`, `UpdatePersonDetails` | globalna, publiczny ULID; bez automatycznego dopasowania (Z-019) |
+| CONTACT | `Contact`, `AddContact`, `RemoveContact`, `RequestContactVerification`, `VerifyContact` | kanał należący do osoby; nie łączy osób (Z-020) |
+| ACCOUNT | `App\Models\User` + Fortify, `LinkAccountToPerson`, `ResolveAccountPerson` | konto dołącza do PERSON po weryfikacji e-maila (Z-021, Z-022) |
+| Działanie w imieniu | `Representation`, `GrantRepresentation`, `ChangeRepresentationScopes`, `EndRepresentation`, `ActOnBehalf` | relacja w czasie z zakresami (Z-025) |
+
+Operacja dotycząca innej osoby: `ActOnBehalf::handle($account, $subject, RepresentationScope::…, fn () => …)`.
+Zasoby cudzych osób na ekranach: `AccessDenied(...)->hideAsNotFound()`. Zapisy konta wykonywane przez Fortify
+i framework mają jawne powody (audytowane podklasy akcji, `AuditedUserProvider`). Middleware `mfa` wymaga
+potwierdzonego MFA — dla tras administracyjnych od E3.

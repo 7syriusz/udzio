@@ -91,3 +91,4 @@ Etapy E3–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nic
 - 2026-09-26: E0.0–E0.6 ukończone; punkt wejścia E0.7: `1322651`, CI zielone (przebieg `36206144509`).
 - E0.7: poprawiona kolejność uruchomienia z czystego klonu, opis zależności, budowania frontendu i ochrony danych. Pełny zestaw lokalny: **11 testów, 20 asercji**, MySQL 8.4. Zamknięcie potwierdza tag `e0-zamkniety`, nadawany po zielonym CI gałęzi.
 - Użytkownik zlecił przejście z E0 do E1 w tej samej pracy; osobne pytanie o tę granicę nie jest wymagane.
+- E0.7: czysta kopia kodu w `/tmp` — instalacja Composer/npm, build, 11 testów / 20 asercji oraz HTTP `/` i `/up`: 200. Pierwsze CI gałęzi (`36207359502`) nie przeszło startu/migracji; szczegółowy log wymaga dostępu GitHub. Lokalnie potwierdzono start kolejki przed powstaniem tabel. Rozdzielono start MySQL, jednorazową migrację i uruchomienie procesów aplikacji; wynik ponownego CI jest warunkiem scalenia.

@@ -69,9 +69,9 @@ jobs:
         run: docker compose -f compose.production.yaml --env-file .env.production build
       - name: Start stosu i migracje
         run: |
+          docker compose -f compose.production.yaml --env-file .env.production up -d --wait mysql
+          docker compose -f compose.production.yaml --env-file .env.production run --rm --no-deps app php artisan migrate --force
           docker compose -f compose.production.yaml --env-file .env.production up -d
-          for i in $(seq 1 60); do docker compose -f compose.production.yaml --env-file .env.production ps --format '{{.Service}} {{.Health}}' | grep -q "mysql healthy" && break; sleep 3; done
-          docker compose -f compose.production.yaml --env-file .env.production exec -T app php artisan migrate --force
       - name: Test dymny
         run: |
           for i in $(seq 1 30); do [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/up)" = 200 ] && break; sleep 2; done

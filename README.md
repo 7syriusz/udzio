@@ -42,9 +42,14 @@ Nie scalamy do `main` przy czerwonym CI.
 
 ```bash
 cp .env.production.example .env.production   # uzupełnić sekrety na serwerze
-docker compose -f compose.production.yaml --env-file .env.production up -d --build
-docker compose -f compose.production.yaml --env-file .env.production exec app php artisan migrate --force
+docker compose -f compose.production.yaml --env-file .env.production build
+docker compose -f compose.production.yaml --env-file .env.production up -d --wait mysql
+docker compose -f compose.production.yaml --env-file .env.production run --rm --no-deps app php artisan migrate --force
+docker compose -f compose.production.yaml --env-file .env.production up -d
 ```
+
+Migracje uruchamiamy w osobnym kontenerze przed uruchomieniem PHP-FPM, kolejki i harmonogramu.
+Dzięki temu procesy robocze nie startują na pustym schemacie, a migracja nie konkuruje z tworzeniem cache konfiguracji PHP-FPM.
 
 W `.env.production` ustaw oddzielne hasła bazy i roota, unikalny `APP_KEY`, adres aplikacji
 i konfigurację poczty. Plik zawiera sekrety i nie trafia do Git. Ten stos E0 udostępnia HTTP;

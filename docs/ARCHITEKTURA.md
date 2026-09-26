@@ -71,3 +71,14 @@ ani reprezentacji i nigdy nie wyznacza automatycznie SUBJECT-u.
 zadania. Powiązanie `scoped` zapobiega utrzymaniu kontekstu po resecie zakresu pracownika.
 Metody `enter`/`leave` służą infrastrukturze cyklu życia; kod biznesowy używa `runAs`.
 Zasada wykonawcy technicznego dla kolejki: Z-011.
+
+## 6. Dopisywanie audytu (E1.2)
+
+Wstrzykuj `App\Domain\Platform\Actions\RecordAudit`. `handle` przyjmuje kod czynności,
+`subjectType`, `subjectId`, wynik oraz opcjonalnie organizację, powód i korelację. Zapis jest synchroniczny;
+operacja biznesowa obejmuje go swoją transakcją. Nie wywołuj audytu po commit dla faktu, który ma być atomowy
+z zapisem biznesowym. Historia nie zawiera relacji kasowanych kaskadowo ani `updated_at`.
+
+Dopisywanie korekty tworzy nowy fakt, nie zmienia starego. Rejestrowanie odmów po wycofaniu transakcji
+należy do E1.4; automatyczne wartości przed/po i redakcja do E1.3/E1.7. W E1.2 nie zapisujemy dowolnego
+payloadu żądania. Szczegóły uprawnień migracji, granica ochrony SQL i wycofanie: Z-012.

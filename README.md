@@ -17,7 +17,7 @@ composer install
 test -f .env || cp .env.example .env
 php artisan key:generate     # tylko dla NOWEJ instalacji, bez istniejącego klucza
 docker compose up -d --wait  # MySQL 8.4 na 127.0.0.1:3307 (bazy udzio i udzio_test)
-php artisan migrate
+DB_USERNAME=root DB_PASSWORD=root php artisan migrate  # administrator lokalnego MySQL
 npm ci
 npm run build
 php artisan test              # testy zawsze na bazie udzio_test
@@ -28,6 +28,10 @@ Nie generuj ponownie `APP_KEY` w istniejącej instalacji: służy również do o
 Skrypt inicjalizacji MySQL tworzy obie bazy przy pierwszym uruchomieniu pustego wolumenu.
 `docker compose stop` zatrzymuje bazę z zachowaniem danych; `down -v` usuwa wolumen i dane.
 Przy zajętym porcie 3307 sprawdź uruchomione usługi przed zmianą portu w Compose i `.env`.
+
+Od E1.2 migracje tworzą triggery chroniące audyt. W lokalnym Dockerze i testach używamy
+administratora `root` (hasło deweloperskie `root`) do instalacji schematu; aplikacja nadal używa `udzio`.
+W CI można nadpisać dane konta testowego zmiennymi `DB_USERNAME`/`DB_PASSWORD`.
 
 Testy migrują i czyszczą bazę, dlatego działają wyłącznie na MySQL i bazie `*_test`
 (strażniki: `tests/bootstrap.php` i `Tests\TestCase::createApplication()`).
@@ -44,7 +48,7 @@ Nie scalamy do `main` przy czerwonym CI.
 cp .env.production.example .env.production   # uzupełnić sekrety na serwerze
 docker compose -f compose.production.yaml --env-file .env.production build
 docker compose -f compose.production.yaml --env-file .env.production up -d --wait mysql
-docker compose -f compose.production.yaml --env-file .env.production run --rm --no-deps app php artisan migrate --force
+docker compose -f compose.production.yaml --env-file .env.production run --rm --no-deps migrate
 docker compose -f compose.production.yaml --env-file .env.production up -d
 ```
 

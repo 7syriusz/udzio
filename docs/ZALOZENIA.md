@@ -38,3 +38,30 @@ Kontekst jest `scoped`; zagnieżdżone zakresy przywracają poprzednią wartoś�
 Najbardziej wewnętrzny zakres ma pierwszeństwo. Poza konkretnym wejściem konsolowym wykonawcą jest
 `process:application`, poza HTTP — anonimowy dla środowiska WWW. Zmiana polityki odbywa się w providerze
 Platform i middleware, bez migracji danych. Brak zmian w schemacie bazy w E1.1.
+
+## Z-012 — Audyt tylko do dopisywania (E1.2, techniczne, 2026-09-26)
+
+`RecordAudit` zapisuje synchronicznie na domyślnym połączeniu biznesowym. W transakcji wywołującego
+wpis zatwierdza się lub wycofuje razem z operacją. ACTOR pochodzi z kontekstu E1.1; SUBJECT i organizacja
+są odrębnymi, jawnymi odniesieniami historycznymi (typ + identyfikator, bez kaskadowego usuwania).
+Organizacja może być pusta dla operacji globalnych. Korelacja jest ULID-em: wywołujący przekazuje ten sam
+identyfikator dla powiązanych faktów; brak argumentu tworzy nową korelację. Czas zapisujemy w UTC
+z mikrosekundami. Wyniki: `succeeded`, `denied`, `failed`. Powód opcjonalny; obowiązek dla konkretnych
+zmian będzie egzekwowany przez operacje i E1.3. Nie powstały endpointy odczytu audytu przed E3.
+
+Model odrzuca edycję/usuwanie; triggery MySQL blokują również UPDATE, DELETE i aktualizującą gałąź UPSERT.
+To ochrona operacji DML, nie ochrona przed administratorem bazy: DROP/TRUNCATE i usunięcie triggerów
+wymagają osobnego ograniczenia praw DDL konta wykonawczego przed produkcją. Obecne konto instalacyjne
+`udzio` z obrazu MySQL ma nadal uprawnienia schematu nadane przez obraz — E1.2 nie oznacza utwardzenia E12.
+Nie uznajemy triggerów za zabezpieczenie przed przejęciem konta administratora.
+
+MySQL zachowuje `log_bin_trust_function_creators=0`. Triggery instaluje uprzywilejowany proces migracji:
+lokalnie/testowo administrator deweloperskiej bazy, w Compose produkcyjnym jednorazowa usługa `migrate`
+z profilem `tools`. Konto root nie jest kontem zwykłego procesu aplikacji; zmienna z hasłem roota jest
+maskowana pustą wartością w środowisku app/queue/scheduler. Kontener migracji nie jest usługą stale działającą.
+Wymóg konta migracyjnego wynika z zasad MySQL 8.4 przy włączonym binlogu:
+https://dev.mysql.com/doc/refman/8.4/en/stored-programs-logging.html
+
+Wycofanie E1.2: cofnąć kod aplikacji, zachowując tabelę i triggery. `down()` odmawia usunięcia tabeli,
+jeśli zawiera historię; pustą tabelę można usunąć. Przed zmianą instalacji wykonać kopię bazy.
+Nie przewidujemy fabryki/seedera wpisów audytu — testy tworzą fakty wyłącznie przez `RecordAudit`.

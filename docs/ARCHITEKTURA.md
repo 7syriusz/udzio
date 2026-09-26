@@ -176,3 +176,15 @@ $outcome->replayed;  // true, gdy operacja nie była wykonana ponownie
 
 Wywołuj ją poza własną transakcją (ponawia się po zakleszczeniu). Zwracaj wynik zgodny z JSON, najlepiej
 publiczne identyfikatory. Szczegóły: Z-018.
+
+## 13. Lista kontrolna nowego modelu domenowego (po E1)
+
+1. Model biznesowy: `AuditsChanges` + `ClassifiesData` — każde pole sklasyfikowane (§7, §11).
+2. Zmiany w akcjach pod `AuditReason::because(...)`; wykonawca pochodzi z `ActorContext` (§5).
+3. Relacja obowiązująca w czasie: `HasValidityPeriod` + `ValidityColumns` (§9).
+4. Konfiguracja, według której powstają wyniki: `HasVersions`; wynik: `RecordsDefinitionVersion` (§10).
+5. Operacja ponawiana przez klienta: `RunIdempotently` (§12).
+6. Odmowa dostępu: `AccessDenied` (dla obcej organizacji `->hideAsNotFound()`); odczyt danych chronionych:
+   `RecordProtectedRead::forModel` (§8).
+7. Operacja ilościowa lub na wspólnym zasobie: test współbieżności `Race` (§3).
+8. Kryterium A5: wpis w [A5-POKRYCIE.md](A5-POKRYCIE.md).

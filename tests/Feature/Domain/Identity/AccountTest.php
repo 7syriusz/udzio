@@ -47,7 +47,7 @@ class AccountTest extends TestCase
 
     public function test_registration_creates_an_account_that_is_not_yet_a_person(): void
     {
-        $this->post('/register', $this->registration())->assertRedirect('/');
+        $this->post('/register', $this->registration())->assertRedirect('/account');
 
         $account = User::query()->sole();
         $this->assertAuthenticatedAs($account);
@@ -77,7 +77,7 @@ class AccountTest extends TestCase
         $this->post('/login', ['email' => 'ANNA@example.test', 'password' => 'wrong-password-123'])->assertSessionHasErrors('email');
         $this->assertGuest();
 
-        $this->post('/login', ['email' => 'ANNA@example.test', 'password' => self::PASSWORD])->assertRedirect('/');
+        $this->post('/login', ['email' => 'ANNA@example.test', 'password' => self::PASSWORD])->assertRedirect('/account');
         $this->assertAuthenticatedAs($account);
 
         $this->post('/logout')->assertRedirect('/');

@@ -304,3 +304,17 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **Kierunek:** reprezentacja działa w jedną stronę; osoba nie reprezentuje samej siebie; konto bez PERSON nie
   reprezentuje nikogo.
 - **Weryfikacja:** 8 nowych przypadków.
+
+## Z-026 — Ekrany konta (E2.8, funkcjonalne, 2026-09-26)
+
+- **Ekrany** (`/account`, tylko zalogowani ze zweryfikowanym e-mailem): moje dane (PERSON), kontakty
+  (dodanie, kod weryfikacyjny, usunięcie), bezpieczeństwo (MFA z kodem QR i kodami odzyskiwania, zmiana
+  hasła, wylogowanie pozostałych urządzeń), osoby reprezentowane (lista aktywnych reprezentacji, podgląd
+  i edycja w zakresie). Po zalogowaniu użytkownik trafia na `/account`.
+- **F — cudze zasoby = 404:** cudzy kontakt albo osoba bez reprezentacji z potrzebnym zakresem odpowiada 404
+  (nie ujawnia istnienia), a odmowa jest audytowana (E1.4).
+- **F — konto bez PERSON** (konflikt z E2.4): widzi wyjaśnienie i prośbę o kontakt z organizatorem; ekrany
+  danych osobowych są niedostępne. Ścieżka zgłoszenia — do przeglądu (Z-022).
+- **Wygląd:** proste widoki Blade + Tailwind, etykiety pól, komunikaty błędów przy polach, bez JavaScriptu.
+  Dopracowanie wyglądu i dostępności — przy ekranach operatora (E3+).
+- **Weryfikacja:** 10 nowych przypadków HTTP (w tym odmowy dostępu).

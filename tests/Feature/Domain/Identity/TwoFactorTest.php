@@ -78,7 +78,7 @@ class TwoFactorTest extends TestCase
         $this->actingAs($account)->withSession(['auth.password_confirmed_at' => time()])->postJson('/user/two-factor-authentication');
         $this->app['auth']->guard('web')->logout();
 
-        $this->post('/login', ['email' => 'anna@example.test', 'password' => self::PASSWORD])->assertRedirect('/');
+        $this->post('/login', ['email' => 'anna@example.test', 'password' => self::PASSWORD])->assertRedirect('/account');
         $this->assertAuthenticatedAs($account);
     }
 
@@ -93,7 +93,7 @@ class TwoFactorTest extends TestCase
         $this->post('/two-factor-challenge', ['code' => '000000'])->assertRedirect('/two-factor-challenge');
         $this->assertGuest();
 
-        $this->post('/two-factor-challenge', ['code' => $this->nextCode($account)])->assertRedirect('/');
+        $this->post('/two-factor-challenge', ['code' => $this->nextCode($account)])->assertRedirect('/account');
         $this->assertAuthenticatedAs($account);
     }
 
@@ -103,7 +103,7 @@ class TwoFactorTest extends TestCase
         $recovery = $account->recoveryCodes()[0];
 
         $this->post('/login', ['email' => 'anna@example.test', 'password' => self::PASSWORD]);
-        $this->post('/two-factor-challenge', ['recovery_code' => $recovery])->assertRedirect('/');
+        $this->post('/two-factor-challenge', ['recovery_code' => $recovery])->assertRedirect('/account');
 
         $this->assertAuthenticatedAs($account);
         $this->assertNotContains($recovery, $account->fresh()->recoveryCodes());

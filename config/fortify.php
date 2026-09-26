@@ -73,7 +73,7 @@ return [
     |
     */
 
-    'home' => '/',
+    'home' => '/account',
 
     /*
     |--------------------------------------------------------------------------
@@ -161,12 +161,13 @@ return [
     |
     */
 
-    // Enabled step by step (docs/PLAN-ETAPOW.md): e-mail verification E2.4, password reset E2.5,
-    // two-factor E2.6, profile and password screens E2.8. Passkeys are not planned yet.
+    // Enabled step by step (docs/PLAN-ETAPOW.md): registration E2.3, e-mail verification E2.4, password
+    // reset E2.5, two-factor E2.6, password change E2.8 (profile data is PERSON, not Fortify). No passkeys yet.
     'features' => [
         Features::registration(),
         Features::resetPasswords(),
         Features::emailVerification(),
+        Features::updatePasswords(),
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,

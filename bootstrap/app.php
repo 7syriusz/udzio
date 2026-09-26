@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Exceptions\AuditAccessDenials;
+use App\Http\Middleware\RequireTwoFactor;
 use App\Http\Middleware\ResolveActor;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(ResolveActor::class);
         // Ends sessions whose password hash is outdated (logout of other devices, password reset).
         $middleware->web(append: AuthenticateSession::class);
+        $middleware->alias(['mfa' => RequireTwoFactor::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(new AuditAccessDenials);

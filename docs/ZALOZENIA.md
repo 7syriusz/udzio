@@ -218,3 +218,22 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
   dostarcza (ostrzeżenie w logu, bez kodu). Do uzupełnienia przy wyborze operatora (E10 lub wcześniej).
 - **Klasy danych:** adres RESTRICTED, pozostałe pola INTERNAL.
 - **Weryfikacja:** 15 nowych przypadków (w tym 4 warianty normalizacji).
+
+## Z-021 — ACCOUNT, rejestracja i logowanie (E2.3, techniczne + funkcjonalne, 2026-09-26)
+
+- **Fortify:** uwierzytelnianie przez Laravel Fortify (widoki Blade własne). Funkcje włączane podetapami:
+  rejestracja w E2.3, weryfikacja e-mail E2.4, reset hasła E2.5, MFA E2.6, ekrany profilu E2.8.
+  Passkeys (dostarczane z Fortify) wyłączone — poza planem; do rozważenia później.
+- **Konto nie jest osobą:** rejestracja tworzy tylko ACCOUNT (`users`) z imieniem i nazwiskiem podanymi
+  przy rejestracji. Powiązanie z PERSON następuje po weryfikacji e-maila (E2.4): z istniejącą osobą albo
+  z nową. Do tego czasu konto nie ma dostępu do danych żadnej osoby.
+- **Jedna PERSON — najwyżej jedno konto:** unikalne `users.person_id` + `LinkAccountToPerson` (blokady,
+  konflikt `AccountLinkConflict`). Powiązane konto nie przechodzi do innej osoby (ochrona w modelu).
+- **F — hasło:** co najmniej 12 znaków, bez wymogów składu (zalecenie NIST SP 800-63B). Sprawdzanie
+  w bazie wycieków (HIBP) — do rozważenia w E2.5 (wymaga połączenia zewnętrznego). Zmiana:
+  `AppServiceProvider::boot` (`Password::defaults`).
+- **F — e-mail logowania:** zapisywany małymi literami, unikalny dla konta. Logowanie ignoruje wielkość liter.
+- **Audyt zapisów frameworka:** rotacja tokenu „zapamiętaj mnie” i przeliczenie skrótu hasła idą przez
+  `AuditedUserProvider` z jawnym powodem technicznym; wartości SECRET są redagowane.
+- **Weryfikacja:** 9 nowych przypadków; zestaw po zmianie tabeli `users` (zamiast `name`: `given_name`,
+  `family_name`, `person_id`).

@@ -15,13 +15,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Fortify\TwoFactorAuthenticatable;
 
 #[Fillable(['given_name', 'family_name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable implements ClassifiesData, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use AuditsChanges, HasFactory, Notifiable;
+    use AuditsChanges, HasFactory, Notifiable, TwoFactorAuthenticatable {
+        TwoFactorAuthenticatable::replaceRecoveryCode as private replaceRecoveryCodeUnaudited;
+    }
 
     public function auditSubjectType(): string
     {
@@ -47,6 +50,17 @@ class User extends Authenticatable implements ClassifiesData, MustVerifyEmail
             'two_factor_recovery_codes' => DataClass::Secret,
             'two_factor_confirmed_at' => DataClass::Internal,
         ];
+    }
+
+    /** A used recovery code is replaced by a new one; the write is audited (values stay SECRET). */
+    public function replaceRecoveryCode($code): void
+    {
+        app(AuditReason::class)->because('recovery code used at login', fn () => $this->replaceRecoveryCodeUnaudited($code));
+    }
+
+    public function hasConfirmedTwoFactor(): bool
+    {
+        return $this->two_factor_secret !== null && $this->two_factor_confirmed_at !== null;
     }
 
     public function markEmailAsVerified(): bool
@@ -78,6 +92,7 @@ class User extends Authenticatable implements ClassifiesData, MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'two_factor_confirmed_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

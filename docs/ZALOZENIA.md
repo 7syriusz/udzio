@@ -271,3 +271,16 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
   na produkcji, `http_only`, `SameSite=Lax`.
 - **Audyt:** każdy zapis konta wykonany przez framework ma powód (reset, rotacja tokenu, przeliczenie skrótu).
 - **Weryfikacja:** 7 nowych przypadków.
+
+## Z-024 — MFA (TOTP) i kody odzyskiwania (E2.6, techniczne + funkcjonalne, 2026-09-26)
+
+- **Mechanizm:** Fortify TOTP (RFC 6238, aplikacja uwierzytelniająca, kod QR) z potwierdzeniem kodem przed
+  aktywacją; 8 kodów odzyskiwania, każdy jednorazowy (po użyciu zastępowany nowym). Sekret i kody szyfrowane
+  w bazie, klasa SECRET (w audycie tylko fakt zmiany). Ponowne użycie tego samego kodu TOTP jest odrzucane.
+- **F — włączenie/wyłączenie:** wymaga potwierdzenia hasła w ciągu ostatnich 3 godzin (domyślne Laravel,
+  `auth.password_timeout`). Każda zmiana jest audytowana z powodem.
+- **F — limit:** 5 prób kodu na minutę dla logowania (Fortify `two-factor`); potem 429.
+- **Wymuszenie dla administratorów:** middleware `mfa` (`RequireTwoFactor`) wpuszcza tylko konta
+  z potwierdzonym MFA; pozostałe dostają 403 (audytowane jako odmowa). Do tras administracyjnych dołączane
+  od E3, gdy powstaną role. Ekran włączania MFA — E2.8.
+- **Weryfikacja:** 8 nowych przypadków.

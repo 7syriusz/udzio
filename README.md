@@ -33,4 +33,5 @@ Nie scalamy do `main` przy czerwonym CI.
 
 - Specyfikacja nadrzędna: [docs/specifications/E1E2E3A5Skalik.md](docs/specifications/E1E2E3A5Skalik.md)
 - Plan etapów i zasady pracy: [docs/PLAN-ETAPOW.md](docs/PLAN-ETAPOW.md)
+- Architektura i konwencje: [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md)
 - Rejestr założeń: [docs/ZALOZENIA.md](docs/ZALOZENIA.md)

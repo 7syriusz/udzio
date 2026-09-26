@@ -167,3 +167,21 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **Poza zakresem E1.7:** szyfrowanie danych w spoczynku, retencja i anonimizacja (późniejsze etapy),
   uprawnienie do eksportu danych SPECIAL CATEGORY bez redakcji (E3, ROLE/PERMISSION).
 - **Weryfikacja:** 7 nowych przypadków; pełny zestaw 82 testy / 252 asercje, także w losowej kolejności.
+
+## Z-018 — Idempotencja operacji (E1.8, techniczne + funkcjonalne, 2026-09-26)
+
+- **Tożsamość żądania:** (operacja `scope`, wykonawca `owner` = typ:identyfikator ACTOR-a, klucz klienta).
+  Klucz: 8–191 znaków ASCII, np. ULID/UUID z nagłówka `Idempotency-Key`. Klucze różnych wykonawców
+  i różnych operacji się nie mieszają, więc cudzy klucz nie ujawnia cudzego wyniku. Anonimowi wykonawcy
+  dzielą przestrzeń kluczy — klucz musi być losowy (co najmniej 128 bitów).
+- **Ta sama treść:** skrót SHA-256 kanonicznego JSON (jak w E1.6). Ponowienie z tą samą treścią zwraca zapisany
+  wynik bez ponownego wykonania; inna treść z tym samym kluczem → `IdempotencyConflict` (w HTTP: 409, gdy
+  powstanie warstwa API).
+- **Atomowość:** klucz i wynik są zapisywane w tej samej transakcji co operacja. Nieudana operacja zwalnia
+  klucz — ponowienie wykona ją od nowa. Wynik musi być zgodny z JSON.
+- **Współbieżność:** równoległe żądanie czeka na unikalnym indeksie i dostaje zapisany wynik. Gdy pierwsze
+  żądanie zostanie wycofane, oczekujące mogą się zakleszczyć; transakcja ponawia się do 3 razy. Ponowienie
+  działa tylko dla transakcji zewnętrznej — wywołuj `RunIdempotently` na zewnątrz transakcji biznesowej.
+- **F — czas przechowywania kluczy:** bez wygasania w E1.8. Czyszczenie starych kluczy (np. po 30 dniach)
+  dojdzie z zadaniami utrzymaniowymi (E12); kolumna `created_at` ma indeks.
+- **Weryfikacja:** 7 nowych przypadków, w tym test współbieżności (dwa procesy, operacja wykonana raz).

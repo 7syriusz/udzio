@@ -161,3 +161,18 @@ Zapis pola bez klasy jest odrzucany (poza kluczem i znacznikami czasu). O skutka
 Eksport przepuszcza wartości przez `ClassifiedData::forExport($model, $values)`. Po wyświetleniu pól
 wywołaj `RecordProtectedRead::forModel($model, $fields, $cel)` — zapisze odczyt, jeśli klasa tego wymaga.
 Scenariusz może podnieść klasę pola (np. członkostwo polityczne → SPECIAL CATEGORY). Szczegóły: Z-017.
+
+## 12. Idempotencja (E1.8)
+
+Operacje, które klient może ponowić (rejestracja, zamówienie, płatność, import), uruchamiaj przez
+`App\Domain\Platform\Actions\RunIdempotently`:
+
+```php
+$outcome = $idempotent->handle('registration.create', $request->header('Idempotency-Key'), $validated,
+    fn () => ['registration' => $createRegistration->handle($validated)->public_id]);
+$outcome->value;     // ten sam wynik przy każdym ponowieniu
+$outcome->replayed;  // true, gdy operacja nie była wykonana ponownie
+```
+
+Wywołuj ją poza własną transakcją (ponawia się po zakleszczeniu). Zwracaj wynik zgodny z JSON, najlepiej
+publiczne identyfikatory. Szczegóły: Z-018.

@@ -200,3 +200,21 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
   Zmiana: `RegisterPerson`.
 - **Identyfikator:** publiczny ULID (`public_id`) jest niezmienny; na zewnątrz nigdy wewnętrzne `id`.
 - **Weryfikacja:** 10 nowych przypadków (w tym 4 warianty walidacji).
+
+## Z-020 — CONTACT i weryfikacja kanału (E2.2, funkcjonalne, 2026-09-26)
+
+- **Kontakt ≠ osoba:** kontakt ma jednego właściciela (PERSON). Ten sam adres może mieć kilka osób
+  (wspólny e-mail rodziny) — nigdy ich nie łączy. Kontakt opiekuna używany w sprawie dziecka pozostaje
+  kontaktem opiekuna; powiązanie dziecka z opiekunem da relacja reprezentacji (E2.7).
+- **F — normalizacja:** e-mail przycinany i zapisywany małymi literami; telefon w formacie E.164. Numer bez
+  prefiksu dostaje kod kraju z `config/identity.php` (domyślnie +48), `00` zamieniane na `+`.
+- **Niezmienność:** adres i właściciel kontaktu się nie zmieniają; nowy adres = nowy kontakt. Usunięcie
+  ustawia `removed_at` (historia zostaje) i unieważnia oczekujące kody. Ta sama osoba nie ma dwóch
+  aktywnych identycznych kontaktów (unikalna kolumna generowana `active_key`).
+- **F — weryfikacja kodem:** 6 cyfr, ważny 30 min, 5 błędnych prób unieważnia kod, 5 próśb o kod na godzinę
+  na kontakt; nowy kod unieważnia poprzedni. Przechowywany jest tylko HMAC-SHA256 kodu. Komunikat błędu
+  nie zdradza przyczyny. Wszystkie wartości w `config/identity.php`.
+- **F — SMS:** operator SMS nie jest jeszcze wybrany. Weryfikacja telefonu zapisuje kod, ale go nie
+  dostarcza (ostrzeżenie w logu, bez kodu). Do uzupełnienia przy wyborze operatora (E10 lub wcześniej).
+- **Klasy danych:** adres RESTRICTED, pozostałe pola INTERNAL.
+- **Weryfikacja:** 15 nowych przypadków (w tym 4 warianty normalizacji).

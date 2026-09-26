@@ -82,3 +82,17 @@ z zapisem biznesowym. Historia nie zawiera relacji kasowanych kaskadowo ani `upd
 Dopisywanie korekty tworzy nowy fakt, nie zmienia starego. Rejestrowanie odmów po wycofaniu transakcji
 należy do E1.4; automatyczne wartości przed/po i redakcja do E1.3/E1.7. W E1.2 nie zapisujemy dowolnego
 payloadu żądania. Szczegóły uprawnień migracji, granica ochrony SQL i wycofanie: Z-012.
+
+## 7. Audyt zmian instancji modelu (E1.3)
+
+Model korzystający z `AuditsChanges` deklaruje `auditSubjectType`, `auditOrganizationId`,
+`auditVisibleFields` i `auditRedactedFields`. Powód zmiany obejmuje cały blok operacji:
+
+```php
+$reason->because('user requested profile correction', fn () => $user->update($validated));
+```
+
+`AuditReason` wstrzykuj do akcji. Nie wpisuj sekretów do tekstu powodu. Kontekst wykonawcy pochodzi
+z E1.1. Audytowane modele korzystają z domyślnego połączenia biznesowego. Zapis audytu jest częścią
+transakcji modelu, a zewnętrzna transakcja może wycofać całą operację. Nie używaj masowych zapisów
+omijających instancję modelu bez jawnego audytu na tym samym połączeniu. Zakres i testy: Z-013.

@@ -5,12 +5,16 @@ namespace Tests\Feature\Http\Middleware;
 use App\Domain\Platform\Actor;
 use App\Domain\Platform\ActorContext;
 use App\Models\User;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class ResolveActorTest extends TestCase
 {
+    /** Denied requests are audited since E1.4, so this test now writes to the database. */
+    use LazilyRefreshDatabase;
+
     public function test_http_ignores_claimed_actor_from_headers_and_input(): void
     {
         Route::get('/actor-probe', fn (ActorContext $context): array => $context->current()->toArray());

@@ -96,3 +96,21 @@ $reason->because('user requested profile correction', fn () => $user->update($va
 z E1.1. Audytowane modele korzystają z domyślnego połączenia biznesowego. Zapis audytu jest częścią
 transakcji modelu, a zewnętrzna transakcja może wycofać całą operację. Nie używaj masowych zapisów
 omijających instancję modelu bez jawnego audytu na tym samym połączeniu. Zakres i testy: Z-013.
+
+## 8. Audyt odmów i odczytów danych chronionych (E1.4)
+
+Każda odmowa HTTP jest audytowana automatycznie (`App\Http\Exceptions\AuditAccessDenials`, podpięte w
+`bootstrap/app.php`): odpowiedź 403 oraz odmowa autoryzacji renderowana jako 404. Klient dostaje zwykłą
+odpowiedź. Błąd samego zapisu audytu jest logowany i nigdy nie zmienia 403/404 na 500.
+
+Moduły odmawiają dostępu przez `App\Domain\Platform\Exceptions\AccessDenied`, podając SUBJECT
+(`subjectType`, `subjectId`), organizację i zdolność. Dla rekordów obcej organizacji użyj
+`->hideAsNotFound()`: klient widzi 404, a audyt zapisuje odmowę (A5-14).
+
+Poza HTTP (komendy, kolejki) wywołuj jawnie `RecordAccessDenial::handle`. Odczyt danych chronionych zapisuje
+`RecordProtectedRead::handle($subjectType, $subjectId, $fields, $organizationId, $purpose)` — tylko nazwy pól,
+nigdy wartości. O tym, które pola tego wymagają, zdecyduje klasyfikacja danych (E1.7).
+
+Oba zapisy idą osobnym połączeniem `audit` (ta sama baza), więc przetrwają wycofanie transakcji biznesowej.
+Limit: 20 wpisów odmowy na minutę dla pary wykonawca–cel. Testy, które wywołują odmowę HTTP, muszą używać
+transakcji testowej (`LazilyRefreshDatabase`) albo sprzątać po sobie. Szczegóły: Z-014.

@@ -12,7 +12,10 @@ final class RecordAudit
 {
     public function __construct(private readonly ActorContext $context) {}
 
-    /** Append on the business connection, inside the caller's transaction. */
+    /**
+     * Append on the business connection, inside the caller's transaction. Pass `$connection`
+     * ('audit') only for facts that must survive a rollback (E1.4).
+     */
     public function handle(
         string $action,
         string $subjectType,
@@ -23,6 +26,7 @@ final class RecordAudit
         ?string $correlationId = null,
         ?array $before = null,
         ?array $after = null,
+        ?string $connection = null,
     ): AuditEntry {
         $actor = $this->context->current();
         $attributes = [
@@ -52,6 +56,9 @@ final class RecordAudit
         ])->validate();
 
         $entry = new AuditEntry;
+        if ($connection !== null) {
+            $entry->setConnection($connection);
+        }
         $entry->forceFill($attributes)->save();
 
         return $entry;

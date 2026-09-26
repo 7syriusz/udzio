@@ -91,3 +91,23 @@ trzeba odczytać model ponownie przed dalszą pracą; obiekt PHP nie jest snapsh
 E1.3 dodaje tylko nullable JSON `before_values` i `after_values`. Stare wpisy pozostają niezmienione.
 Wycofanie kodu zachowuje kolumny; `down()` odmawia ich usunięcia, jeśli zawierają historię.
 Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać właściwą organizację.
+
+## Z-014 — Audyt odmów i odczytów danych chronionych (E1.4, techniczne, 2026-09-26)
+
+- **Niezależny zapis:** odmowy i odczyty danych chronionych trafiają do `audit_entries` przez osobne połączenie
+  `audit` do tej samej bazy. Odmowa zwykle przerywa operację biznesową, a jej ślad nie może zniknąć razem
+  z wycofaną transakcją (A5-14). Zwykłe zmiany (E1.2/E1.3) pozostają atomowe z operacją.
+- **Blokady:** InnoDB nie zwalnia blokad po wycofaniu do punktu zapisu (savepoint), dopóki trwa zewnętrzna
+  transakcja. Zapis przez połączenie `audit` mógłby wtedy czekać na blokady tej samej operacji. Połączenie
+  `audit` ma więc `innodb_lock_wait_timeout = 5` s, a błąd zapisu jest logowany (`critical`) bez zmiany
+  odpowiedzi klienta. Zauważone w testach z transakcją testową; w produkcji dotyczy tylko transakcji
+  zagnieżdżonych.
+- **Co jest odmową:** każda odpowiedź 403 oraz `AuthorizationException` (w tym `AccessDenied` ukryty jako 404).
+  Zwykłe 404 (brak trasy lub rekordu) nie jest odmową.
+- **Dane w audycie:** status, metoda, nazwa trasy (albo wzorzec URI), zdolność. Bez parametrów zapytania,
+  treści żądania i wartości pól. Odczyt chroniony zapisuje tylko nazwy pól i cel.
+- **Limit:** 20 wpisów na minutę dla pary wykonawca–cel (pamięć podręczna aplikacji). Nadmiar jest pomijany
+  i logowany (`warning`), żeby zalew odmów nie wypełnił audytu.
+- **Poza zakresem E1.4:** automatyczne wykrywanie pól chronionych (E1.7) oraz odmowy poza HTTP bez jawnego
+  wywołania. Weryfikacja: 10 nowych przypadków; pełny zestaw 57 testów / 176 asercji, także w losowej
+  kolejności (4 przebiegi).

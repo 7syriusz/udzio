@@ -129,3 +129,17 @@ Membership::query()->where($key)->activeAt($day)->exists();          // stan na 
 
 Nie zmieniaj `valid_from`, `valid_to` ani klucza bezpośrednio. Zamknięte okresy są tylko do odczytu.
 Konflikt (nakładanie, drugi otwarty okres, przejście przed początkiem) zgłasza `ValidityConflict`. Szczegóły: Z-015.
+
+## 10. Definicja → wersja → wynik (E1.6)
+
+Definicja (formularz, reguła, typ biletu, polityka cen) używa `HasVersions` i `AuditsChanges`, a w
+`versionSnapshot()` zwraca pełną treść decydującą o wyniku. Wynik używa `RecordsDefinitionVersion`
+i ma kolumnę `definition_version_id` (klucz obcy do `definition_versions`, `restrictOnDelete`).
+
+```php
+$version = $form->publishVersion();                                  // zamrożona kopia, numer kolejny
+FormResponse::create(['definition_version_id' => $version->id, ...]); // wynik według dokładnej wersji
+$response->definitionVersion->content;                              // interpretacja zawsze przez wersję
+```
+
+Nie czytaj bieżącego szkicu definicji, żeby zinterpretować stary wynik. Szczegóły: Z-016.

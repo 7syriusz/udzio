@@ -9,6 +9,7 @@ use Database\Factories\PersonFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use LogicException;
 
 /**
@@ -50,6 +51,12 @@ class Person extends Model implements ClassifiesData
     protected function casts(): array
     {
         return ['birth_date' => 'immutable_date'];
+    }
+
+    /** Contacts owned by this person (active and removed). */
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(Contact::class);
     }
 
     public function fullName(): string

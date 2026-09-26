@@ -23,6 +23,9 @@ php artisan test              # testy zawsze na bazie udzio_test
 Testy migrują i czyszczą bazę, dlatego działają wyłącznie na MySQL i bazie `*_test`
 (strażniki: `tests/bootstrap.php` i `Tests\TestCase::createApplication()`).
 
+Testy współbieżności (`php artisan test --group concurrency`) uruchamiają niezależne procesy PHP
+z własnymi połączeniami MySQL: `tests/Support/Concurrency/Race.php`.
+
 CI (GitHub Actions) przy każdym pushu sprawdza styl (Pint) i uruchamia testy na MySQL 8.4.
 Nie scalamy do `main` przy czerwonym CI.
 

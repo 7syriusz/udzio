@@ -111,3 +111,24 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **Poza zakresem E1.4:** automatyczne wykrywanie pól chronionych (E1.7) oraz odmowy poza HTTP bez jawnego
   wywołania. Weryfikacja: 10 nowych przypadków; pełny zestaw 57 testów / 176 asercji, także w losowej
   kolejności (4 przebiegi).
+
+## Z-015 — Relacje w czasie (E1.5, techniczne + funkcjonalne, 2026-09-26)
+
+- **Okres półotwarty:** relacja obowiązuje w `[valid_from, valid_to)`; `valid_to = NULL` oznacza okres otwarty.
+  Czas w UTC z dokładnością do mikrosekund. Pytanie „na dzień” to `activeAt($chwila)` albo `effectiveAt($chwila)`.
+- **Klucz relacji:** model deklaruje `validityKey()` (np. osoba + organizacja). Dla jednego klucza okresy nie
+  nachodzą na siebie i istnieje najwyżej jeden okres otwarty. Pilnują tego blokada `lockForUpdate` na kluczu
+  oraz unikalna kolumna generowana `open_key` w MySQL (druga linia obrony przy wyścigu).
+- **Zmiana = nowy okres:** zawieszenie, wznowienie i zmiana funkcji zamykają bieżący okres i otwierają nowy
+  (`transition`). Zakończenie (`end`) tylko zamyka okres. Poprzednie okresy zostają w historii (A5 §11).
+- **Statusy:** `active`, `suspended` (`RelationStatus`). Zawieszona relacja jest obowiązująca, ale nieaktywna.
+  Nowy status dodaje się w enumie bez migracji.
+- **F — bez przepisywania historii:** zamkniętego okresu nie można edytować, a `valid_from` nie zmienia się.
+  Przejście musi nastąpić po początku bieżącego okresu. Korekta wsteczna (np. błędnie wpisana data przyjęcia)
+  nie jest w E1.5 obsługiwana; jeśli będzie potrzebna, powstanie jako jawna, audytowana operacja korekty.
+  Zmiana: `HasValidityPeriod::bootHasValidityPeriod`.
+- **Audyt i powód:** modele relacji używają też `AuditsChanges`, więc zamknięcie okresu wymaga powodu,
+  a otwarcie nowego jest audytowane jako utworzenie.
+- **Pierwsze użycia:** reprezentacja (E2.7) i członkostwo (E3). W E1.5 wzorzec jest sprawdzany na modelu
+  testowym `Tests\Fixtures\ValidityProbe` (migracja w `tests/Fixtures/migrations`, ładowana tylko w testach).
+  Weryfikacja: 9 nowych przypadków, w tym test współbieżności (dwa procesy, jeden okres otwarty).

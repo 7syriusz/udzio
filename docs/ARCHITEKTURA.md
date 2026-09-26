@@ -58,3 +58,16 @@ Katalog modułu powstaje wraz z pierwszym kodem modułu. Nazwa branżowa nie two
 | Migracje bez `float()` / `double()` | Kwoty jako liczby całkowite (sekcja 2). |
 | Brak `enum()` w migracjach | Statusy jako tekst + PHP `enum`. |
 | Kod domenowy tylko w `app/Domain/<Moduł>/` z nazwą z listy modułów | Pilnuje granic A5 i zakazu modułów branżowych. |
+
+## 5. Kontekst ACTOR (E1.1)
+
+Wstrzykuj `App\Domain\Platform\ActorContext` i odczytuj `current()` w chwili operacji.
+`Actor` jest niezmiennym obiektem wartości. `runAs(Actor::integration('identyfikator'), fn () => ...)`
+ogranicza jawnego wykonawcę do jednego bloku i przywraca poprzedni kontekst również przy wyjątku.
+Nie używaj danych wejściowych klienta do ustawienia wykonawcy. Kontekst nie jest mechanizmem autoryzacji
+ani reprezentacji i nigdy nie wyznacza automatycznie SUBJECT-u.
+
+`ResolveActor` otacza HTTP; `PlatformServiceProvider` obsługuje zdarzenia początku/końca komendy i próby
+zadania. Powiązanie `scoped` zapobiega utrzymaniu kontekstu po resecie zakresu pracownika.
+Metody `enter`/`leave` służą infrastrukturze cyklu życia; kod biznesowy używa `runAs`.
+Zasada wykonawcy technicznego dla kolejki: Z-011.

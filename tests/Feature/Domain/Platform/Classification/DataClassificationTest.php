@@ -42,11 +42,11 @@ class DataClassificationTest extends TestCase
 
     public function test_export_follows_the_class_policy(): void
     {
-        $user = User::factory()->make(['name' => 'Anna', 'email' => 'anna@example.test', 'email_verified_at' => null]);
+        $user = User::factory()->make(['given_name' => 'Anna', 'email' => 'anna@example.test', 'email_verified_at' => null]);
 
         $exported = ClassifiedData::forExport($user, [...$user->getAttributes(), 'unlisted' => 'x']);
 
-        $this->assertSame('Anna', $exported['name'], 'RESTRICTED jest eksportowane uprawnionym.');
+        $this->assertSame('Anna', $exported['given_name'], 'RESTRICTED jest eksportowane uprawnionym.');
         $this->assertSame('anna@example.test', $exported['email']);
         $this->assertArrayNotHasKey('password', $exported, 'SECRET nie trafia do eksportu.');
         $this->assertArrayNotHasKey('remember_token', $exported);

@@ -20,7 +20,7 @@ class AuditsChangesTest extends TestCase
 
     public function test_creation_records_redacted_values_without_copying_secrets(): void
     {
-        $user = User::factory()->unverified()->create(['name' => 'Private Name', 'email' => 'private@example.test', 'remember_token' => 'secret-token']);
+        $user = User::factory()->unverified()->create(['given_name' => 'Private Name', 'email' => 'private@example.test', 'remember_token' => 'secret-token']);
 
         $entry = AuditEntry::query()->sole();
 
@@ -28,7 +28,7 @@ class AuditsChangesTest extends TestCase
         $this->assertSame((string) $user->id, $entry->subject_id);
         $values = $entry->after_values;
         ksort($values);
-        $this->assertSame(['email' => '[REDACTED]', 'email_verified_at' => null, 'name' => '[REDACTED]', 'password' => '[REDACTED]', 'remember_token' => '[REDACTED]'], $values);
+        $this->assertSame(['email' => '[REDACTED]', 'email_verified_at' => null, 'family_name' => '[REDACTED]', 'given_name' => '[REDACTED]', 'password' => '[REDACTED]', 'person_id' => null, 'remember_token' => '[REDACTED]', 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'two_factor_secret' => null], $values);
         foreach (['Private Name', 'private@example.test', 'secret-token', $user->password] as $secret) {
             $this->assertStringNotContainsString($secret, $entry->toJson());
         }
@@ -73,34 +73,34 @@ class AuditsChangesTest extends TestCase
 
     public function test_missing_reason_rolls_back_model_change(): void
     {
-        $user = User::factory()->create(['name' => 'Original']);
+        $user = User::factory()->create(['given_name' => 'Original']);
 
         try {
-            $user->update(['name' => 'Changed']);
+            $user->update(['given_name' => 'Changed']);
             $this->fail('Missing reason must prevent change.');
         } catch (LogicException $exception) {
             $this->assertSame('A reason is required for an audited change.', $exception->getMessage());
         }
 
-        $this->assertSame('Original', $user->fresh()->name);
+        $this->assertSame('Original', $user->fresh()->given_name);
         $this->assertDatabaseCount('audit_entries', 1);
     }
 
     public function test_audit_failure_rolls_back_model_write(): void
     {
-        $user = User::factory()->create(['name' => 'Original']);
+        $user = User::factory()->create(['given_name' => 'Original']);
         Event::listen('eloquent.creating: '.AuditEntry::class, function (): never {
             throw new RuntimeException('audit unavailable');
         });
 
         try {
-            $this->app->make(AuditReason::class)->because('profile correction', fn () => $user->update(['name' => 'Changed']));
+            $this->app->make(AuditReason::class)->because('profile correction', fn () => $user->update(['given_name' => 'Changed']));
             $this->fail('Audit failure must roll back the write.');
         } catch (RuntimeException $exception) {
             $this->assertSame('audit unavailable', $exception->getMessage());
         }
 
-        $this->assertSame('Original', $user->fresh()->name);
+        $this->assertSame('Original', $user->fresh()->given_name);
         $this->assertDatabaseCount('audit_entries', 1);
         $this->assertNull($this->app->make(AuditReason::class)->current());
     }
@@ -123,7 +123,7 @@ class AuditsChangesTest extends TestCase
     {
         $user = User::factory()->create();
         $reason = $this->app->make(AuditReason::class);
-        $user->name = 'Changed';
+        $user->given_name = 'Changed';
 
         $reason->because('profile correction', fn () => $user->saveQuietly());
         $reason->because('account deletion', fn () => $user->deleteQuietly());

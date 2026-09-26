@@ -114,3 +114,18 @@ nigdy wartości. O tym, które pola tego wymagają, zdecyduje klasyfikacja danyc
 Oba zapisy idą osobnym połączeniem `audit` (ta sama baza), więc przetrwają wycofanie transakcji biznesowej.
 Limit: 20 wpisów odmowy na minutę dla pary wykonawca–cel. Testy, które wywołują odmowę HTTP, muszą używać
 transakcji testowej (`LazilyRefreshDatabase`) albo sprzątać po sobie. Szczegóły: Z-014.
+
+## 9. Relacje w czasie (E1.5)
+
+Relacja obowiązująca w okresie (członkostwo, reprezentacja, funkcja) to model z traitem
+`App\Domain\Platform\Concerns\HasValidityPeriod`. Migracja dodaje kolumny przez
+`ValidityColumns::add($table, ['person_id', 'organization_id'])`, a model zwraca te same kolumny w `validityKey()`.
+
+```php
+$membership = Membership::startPeriod([...], $from);                  // nowy okres, bez nakładania
+$reason->because('elected treasurer', fn () => $membership->transition(RelationStatus::Active, $at, ['function' => 'treasurer']));
+Membership::query()->where($key)->activeAt($day)->exists();          // stan na dzień
+```
+
+Nie zmieniaj `valid_from`, `valid_to` ani klucza bezpośrednio. Zamknięte okresy są tylko do odczytu.
+Konflikt (nakładanie, drugi otwarty okres, przejście przed początkiem) zgłasza `ValidityConflict`. Szczegóły: Z-015.

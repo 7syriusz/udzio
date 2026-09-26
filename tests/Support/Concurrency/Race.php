@@ -20,9 +20,10 @@ class Race
     /**
      * @param  array<int, array{0: class-string<Scenario>, 1: array<string, mixed>}>  $workers
      * @param  array<int, mixed>  $gateBindings
+     * @param  bool  $releaseByRollback  Undo the gate's own writes instead of committing them.
      * @return array{blocked: int, results: array<int, array<string, mixed>>}
      */
-    public static function run(string $gateSql, array $gateBindings, array $workers, float $timeoutSeconds = 10): array
+    public static function run(string $gateSql, array $gateBindings, array $workers, float $timeoutSeconds = 10, bool $releaseByRollback = false): array
     {
         $gate = self::connect();
         $gate->beginTransaction();
@@ -55,7 +56,7 @@ class Race
             }
             usleep(50_000);
         }
-        $gate->commit();
+        $releaseByRollback ? $gate->rollBack() : $gate->commit();
         $gate = null;
 
         $results = [];

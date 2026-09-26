@@ -32,6 +32,9 @@ abstract class TestCase extends BaseTestCase
             throw new RuntimeException("Odmowa uruchomienia testów: wymagany MySQL i baza *_test (połączenie: {$connection}, baza: {$database}).");
         }
 
+        // Test-only tables for platform pattern fixtures (e.g. E1.5 validity periods).
+        $app['migrator']->path(base_path('tests/Fixtures/migrations'));
+
         return $app;
     }
 }

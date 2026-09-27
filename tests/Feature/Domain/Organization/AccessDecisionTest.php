@@ -231,40 +231,6 @@ class AccessDecisionTest extends TestCase
         $this->app->make(AssignRole::class)->handle($this->account, $this->coordinator, $this->region, ScopeInheritance::UnitOnly, null, 'Bez uprawnień');
     }
 
-    public function test_authorized_administrator_assigns_within_scope_and_the_grant_is_recorded(): void
-    {
-        $admin = User::factory()->create();
-        $this->grant($admin, $this->administrator, $this->headquarters, ScopeInheritance::UnitAndDescendants);
-
-        $assignment = $this->asAccount($admin, fn () => $this->app->make(AssignRole::class)->handle($this->account, $this->coordinator, $this->branch, ScopeInheritance::UnitOnly, null, 'Nadanie przez administratora'));
-
-        $this->assertTrue($this->decide($this->branch)->allowed);
-        $grant = AuditEntry::query()->where('action', 'access.granted')->where('actor_id', (string) $admin->id)->sole();
-        $this->assertSame(['roles.assign', $this->branch->public_id], [$grant->after_values['permission'], $grant->after_values['target_organization']]);
-        $this->assertSame('role_assignment.created', AuditEntry::query()->where('subject_id', (string) $assignment->id)->value('action'));
-    }
-
-    public function test_no_self_assignment_and_no_delegation_of_permissions_one_does_not_hold(): void
-    {
-        $admin = User::factory()->create();
-        $this->grant($admin, $this->administrator, $this->headquarters, ScopeInheritance::UnitAndDescendants);
-        $superRole = $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->headquarters, 'Audytor', ['audit.view'], 'Rola'));
-
-        foreach ([
-            fn () => $this->app->make(AssignRole::class)->handle($admin, $this->coordinator, $this->branch, ScopeInheritance::UnitOnly, null, 'Sobie'),
-            fn () => $this->app->make(AssignRole::class)->handle($this->account, $superRole, $this->region, ScopeInheritance::UnitOnly, null, 'Cudze uprawnienie'),
-            fn () => $this->app->make(CreateAccessRole::class)->handle($this->headquarters, 'Szersza', ['audit.view'], 'Eskalacja'),
-        ] as $attempt) {
-            try {
-                $this->asAccount($admin, $attempt);
-                $this->fail('Self-assignment and escalation must be refused.');
-            } catch (AccessDenied) {
-            }
-        }
-        $reasons = AuditEntry::on('audit')->where('action', 'access.denied')->get()->map(fn ($e) => $e->after_values['reason'])->all();
-        $this->assertSame(['self_assignment', 'delegation_exceeds_own_permissions', 'delegation_exceeds_own_permissions'], $reasons);
-    }
-
     public function test_laravel_gate_asks_the_same_decider(): void
     {
         $this->grant($this->account, $this->coordinator, $this->region);

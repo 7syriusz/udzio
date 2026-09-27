@@ -265,7 +265,9 @@ $access->authorize(Permission::MembersManage, $organizacja, 'membership', $membe
 ```
 
 To jedyne miejsce decyzji — nie sprawdzaj ról ręcznie w kontrolerach. Ekrany mogą pytać `Gate::allows(...)`
-(ten sam decydent). Przekazywanie uprawnień innym: `authorizeDelegation`. Proces techniczny bez konta:
+(ten sam decydent, bez zapisu). Nadawanie, zatwierdzanie i odwoływanie ról: `authorizeRoleGrant` według
+katalogu nadawania roli zarządczej (Z-035); definicje ról: `authorizeRoleDefinition`. Operację chronioną
+obejmij `OperationCorrelation::within(...)` — jeden wpis decyzji i wspólna korelacja. Proces techniczny bez konta:
 `SystemAuthority::run($powód, fn () => ...)`. Historyczna decyzja: `$access->decide($konto, $uprawnienie,
 $jednostka, $chwila)`. Szczegóły: Z-033.
 

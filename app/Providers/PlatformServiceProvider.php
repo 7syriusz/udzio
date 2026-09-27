@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Domain\Platform\Actor;
 use App\Domain\Platform\ActorContext;
 use App\Domain\Platform\AuditReason;
+use App\Domain\Platform\OperationCorrelation;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Contracts\Foundation\Application;
@@ -18,6 +19,7 @@ class PlatformServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(AuditReason::class);
+        $this->app->scoped(OperationCorrelation::class);
         $this->app->scoped(ActorContext::class, fn (Application $app): ActorContext => new ActorContext(
             $app->runningInConsole() ? Actor::process('application') : Actor::anonymous(),
         ));

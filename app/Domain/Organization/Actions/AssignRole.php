@@ -5,13 +5,15 @@ namespace App\Domain\Organization\Actions;
 use App\Domain\Organization\Access\AccessDecider;
 use App\Domain\Organization\Enums\AccessRoleStatus;
 use App\Domain\Organization\Enums\OrganizationStatus;
-use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Enums\ScopeInheritance;
 use App\Domain\Organization\Models\AccessRole;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\RoleAssignment;
 use App\Domain\Organization\OrganizationHierarchy;
+use App\Domain\Platform\ActorContext;
 use App\Domain\Platform\AuditReason;
+use App\Domain\Platform\Enums\RelationStatus;
+use App\Domain\Platform\OperationCorrelation;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
@@ -19,10 +21,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Gives an account a role in a SCOPE from now, optionally until a moment (expiry). The scope must be the
- * role's organization or a unit below it; the role and the scope must be active. The inheritance policy
- * is always explicit. The current ACTOR must hold `roles.assign` in the scope and every permission of the
- * role, and cannot assign to itself — checked here for every caller (AccessDecider, E3.6).
+ * Gives an account a role in a SCOPE from now, optionally until a moment. Authorized centrally by the
+ * role-granting catalog of the current ACTOR's managing role (AccessDecider::authorizeRoleGrant, E3.6a);
+ * a rule may require approval — then the assignment waits as `pending` and grants nothing until approved.
+ * The scope must be the role's organization or a unit below it; the role and the scope must be active.
  */
 final class AssignRole
 {
@@ -30,6 +32,8 @@ final class AssignRole
         private readonly AuditReason $reason,
         private readonly OrganizationHierarchy $hierarchy,
         private readonly AccessDecider $access,
+        private readonly OperationCorrelation $operation,
+        private readonly ActorContext $context,
     ) {}
 
     public function handle(User $account, AccessRole $role, Organization $scope, ScopeInheritance $inheritance, ?DateTimeInterface $until, string $reason): RoleAssignment
@@ -39,11 +43,11 @@ final class AssignRole
             throw ValidationException::withMessages(['until' => 'Termin wygaśnięcia musi być w przyszłości.']);
         }
 
-        return $this->reason->because($reason, fn () => DB::transaction(function () use ($account, $role, $scope, $inheritance, $until, $now): RoleAssignment {
+        return $this->operation->within(fn () => $this->reason->because($reason, fn () => DB::transaction(function () use ($account, $role, $scope, $inheritance, $until, $now): RoleAssignment {
             User::query()->whereKey($account->getKey())->lockForUpdate()->firstOrFail();
             $currentRole = AccessRole::query()->whereKey($role->getKey())->lockForUpdate()->firstOrFail();
             $currentScope = Organization::query()->whereKey($scope->getKey())->lockForUpdate()->firstOrFail();
-            $this->access->authorizeDelegation(Permission::RolesAssign, $currentScope, $currentRole->permissions, $account->getKey(), 'role_assignment');
+            $decision = $this->access->authorizeRoleGrant('assign', $currentRole, $currentScope, $until, $account->getKey());
             if ($currentRole->status !== AccessRoleStatus::Active) {
                 throw ValidationException::withMessages(['role' => 'Nie można nadać wycofanej roli.']);
             }
@@ -55,14 +59,24 @@ final class AssignRole
                 throw ValidationException::withMessages(['scope' => 'Rolę można nadać tylko w organizacji, która ją zdefiniowała, albo w jej jednostkach.']);
             }
 
-            $assignment = RoleAssignment::startPeriod([
+            $actor = $this->context->current();
+            $attributes = [
                 'user_id' => $account->getKey(),
                 'access_role_id' => $currentRole->id,
                 'scope_organization_id' => $currentScope->id,
                 'scope_inheritance' => $inheritance,
-            ], $now);
+            ];
+            if ($decision->basis['requires_approval'] ?? false) {
+                return RoleAssignment::startPeriod([
+                    ...$attributes,
+                    'requested_until' => $until,
+                    'requested_by_type' => $actor->type->value,
+                    'requested_by_id' => $actor->identifier,
+                ], $now, RelationStatus::Pending);
+            }
+            $assignment = RoleAssignment::startPeriod($attributes, $now);
 
             return $until === null ? $assignment : $assignment->end($until);
-        }, attempts: 3));
+        }, attempts: 3)));
     }
 }

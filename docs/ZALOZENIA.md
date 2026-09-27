@@ -469,8 +469,8 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - **Centralna kontrola ról:** `CreateAccessRole`, `UpdateAccessRole`, `RetireAccessRole` (`roles.manage`)
   oraz `AssignRole`, `RevokeRoleAssignment` (`roles.assign`) same wywołują decydenta dla bieżącego ACTOR-a —
   każda droga (ekran, API, komenda, automat) przechodzi przez ten sam mechanizm; nie zależy to od kontrolera.
-- **F — reguły delegowania:** konto nie może nadać roli samemu sobie ani przekazać (w roli lub przypisaniu)
-  uprawnień, których samo nie ma w tym zakresie.
+- **Reguły nadawania ról:** zastąpione w E3.6a katalogiem nadawania ról (Z-035). Reguła „przekazujesz tylko
+  uprawnienia, które sam masz” została **usunięta**.
 - **Proces bez konta:** odmowa, chyba że działa w jawnym, audytowanym trybie `SystemAuthority` (z powodem;
   tylko ACTOR typu `process`, nigdy żądanie HTTP) — przewidziany dla instalacji pierwszego administratora (E3.8).
 - **Rozdzielenie ról:** decyzja korzysta wyłącznie z ACCESS ROLE przypisanych do ACCOUNT. RELATION ROLE
@@ -495,4 +495,33 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   `not_visible` — zapisana raz, także przy wywołaniu z HTTP. Zarchiwizowana jednostka wypada z widoczności.
 - Kolejne moduły (wydarzenia, zapisy, finanse…) filtrują swoje zapytania przez `grantedOrganizationIds` z własnym
   uprawnieniem, zamiast własnej logiki zakresu.
+
+## Z-035 — Katalog nadawania ról (E3.6a, 2026-09-28, decyzja Krzysztofa)
+
+- **Rozdzielenie:** uprawnienie do wykonywania czynności (np. `audit.view`) to co innego niż uprawnienie do
+  nadawania i odwoływania ról. Administrator może nadać rolę z uprawnieniami, których sam nie ma
+  (np. pracownik kadr nadaje rolę „księgowy”).
+- **Katalog w roli zarządczej:** rola z `roles.assign` ma `grant_rules` — listę reguł:
+  - `role` — którą rolę wolno nadawać i odwoływać (tylko aktywne role tej organizacji lub jej jednostek);
+  - `include_descendants` — czy także w jednostkach pod jednostką zakresu administratora;
+  - `max_days` — maksymalny okres nadania w dniach (wtedy termin jest obowiązkowy);
+  - `requires_approval` — czy nadanie czeka na zatwierdzenie.
+  Katalog jest częścią wersjonowanej definicji roli (E1.6), więc decyzję z przeszłości można odtworzyć.
+- **Gdzie wolno działać:** wyznacza to przypisanie roli zarządczej administratora (jednostka i jej polityka
+  `unit_only` / `unit_and_descendants`) oraz reguła `include_descendants`.
+- **Zatwierdzanie:** nadanie z regułą `requires_approval` tworzy przypisanie `pending` (nic nie daje).
+  Zatwierdza inne konto uprawnione do nadania tej roli w tym zakresie — nigdy wnioskujący ani obdarowany.
+  Odrzucenie = odwołanie oczekującego przypisania. Okres aktywny zaczyna się w chwili zatwierdzenia.
+- **Zabezpieczenia (niekonfigurowalne):** zakaz samonadania; zakaz zatwierdzenia własnego wniosku; zakaz roli
+  spoza katalogu; zakaz działania poza zarządzanym zakresem; zakaz pośredniego zwiększania własnych
+  uprawnień: (a) nie można nadać komuś roli z większą władzą nadawania niż własna (`roles.assign` /
+  `roles.manage`, których się nie ma, albo pozycje katalogu spoza własnego katalogu), (b) nie można zmieniać
+  definicji roli, którą samemu się ma. Znane ograniczenie: zmowa dwóch administratorów (nadają sobie nawzajem
+  role z katalogu) — łagodzi ją reguła `requires_approval`.
+- **Jedna decyzja na operację:** każda operacja chroniona (nadanie, zatwierdzenie, odwołanie, definicja roli)
+  ma jeden identyfikator korelacji (`OperationCorrelation`), wspólny dla wpisu decyzji i wpisów zmian.
+  Powtórzone sprawdzenia w tej samej operacji nie tworzą kolejnych wpisów; sprawdzenia przez Gate (ekrany)
+  nie zapisują decyzji wcale.
+- **Komunikat dla użytkownika:** ogólne 403 „This action is unauthorized.” (bez nazw ról, przypisań, zakresów
+  i przyczyny); pełna podstawa odmowy jest tylko w audycie.
 

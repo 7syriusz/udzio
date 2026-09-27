@@ -8,8 +8,9 @@ use App\Domain\Identity\Actions\EndRepresentation;
 use App\Domain\Identity\Actions\GrantRepresentation;
 use App\Domain\Identity\Actions\RegisterPerson;
 use App\Domain\Identity\Actions\UpdatePersonDetails;
-use App\Domain\Identity\Enums\RepresentationKind;
+use App\Domain\Identity\Enums\RepresentationMethod;
 use App\Domain\Identity\Enums\RepresentationScope as Scope;
+use App\Domain\Identity\Exceptions\RepresentationNotAllowed;
 use App\Domain\Identity\Models\Person;
 use App\Domain\Identity\Models\Representation;
 use App\Domain\Platform\Actor;
@@ -48,7 +49,7 @@ class RepresentationTest extends TestCase
     /** @param list<Scope> $scopes */
     private function grant(array $scopes, string $from = '-1 day'): Representation
     {
-        return $this->app->make(GrantRepresentation::class)->handle($this->parent, $this->child, RepresentationKind::Guardian, $scopes, now()->modify($from), 'birth certificate checked by operator');
+        return $this->app->make(GrantRepresentation::class)->handle($this->parent, $this->child, $scopes, RepresentationMethod::Document, 'birth certificate no. AB-123 checked', now()->modify($from), 'birth certificate checked by operator');
     }
 
     private function correctChildName(string $familyName): void
@@ -120,7 +121,7 @@ class RepresentationTest extends TestCase
     {
         $representation = $this->grant([Scope::ProfileView]);
 
-        $this->app->make(ChangeRepresentationScopes::class)->handle($representation, [Scope::ProfileUpdate, Scope::ProfileView], now(), 'guardian asked for edit rights');
+        $this->app->make(ChangeRepresentationScopes::class)->handle($representation, [Scope::ProfileUpdate, Scope::ProfileView], RepresentationMethod::PartiesAcceptance, 'acceptance recorded 2026-09-27', now(), 'guardian asked for edit rights');
         $this->travel(1)->seconds();
 
         $this->assertSame([['profile.view'], ['profile.update', 'profile.view']], $representation->history()->pluck('scopes')->all());
@@ -144,11 +145,75 @@ class RepresentationTest extends TestCase
         $grant = $this->app->make(GrantRepresentation::class);
         foreach ([[$this->parent, [Scope::ProfileView]], [$this->child, []]] as [$represented, $scopes]) {
             try {
-                $grant->handle($this->parent, $represented, RepresentationKind::Guardian, $scopes, now(), 'test');
+                $grant->handle($this->parent, $represented, $scopes, RepresentationMethod::Document, 'birth certificate no. AB-123 checked', now(), 'test');
                 $this->fail('Grant must be refused.');
             } catch (InvalidArgumentException) {
             }
         }
         $this->assertSame(0, Representation::query()->count());
+    }
+
+    public function test_each_period_records_method_basis_and_establishing_actor(): void
+    {
+        $operator = User::factory()->create(['person_id' => $this->person('Operator')->id]);
+
+        $representation = $this->app->make(ActorContext::class)->runAs(Actor::account((string) $operator->id), fn () => $this->grant([Scope::ProfileView]));
+
+        $this->assertSame(RepresentationMethod::Document, $representation->method);
+        $this->assertSame('birth certificate no. AB-123 checked', $representation->basis);
+        $this->assertSame(['account', (string) $operator->id], [$representation->established_by_type, $representation->established_by_id]);
+        $this->assertSame('[REDACTED]', AuditEntry::query()->where('action', 'representation.created')->sole()->after_values['basis'], 'Podstawa to dane RESTRICTED.');
+    }
+
+    public function test_nobody_establishes_or_extends_a_representation_for_themselves(): void
+    {
+        $asParent = fn (callable $operation) => $this->app->make(ActorContext::class)->runAs(Actor::account((string) $this->parentAccount->id), $operation);
+
+        try {
+            $asParent(fn () => $this->grant([Scope::ProfileView]));
+            $this->fail('Self-established representation must be refused.');
+        } catch (RepresentationNotAllowed) {
+        }
+
+        $representation = $this->grant([Scope::ProfileView]);
+        $this->expectException(RepresentationNotAllowed::class);
+        $asParent(fn () => $this->app->make(ChangeRepresentationScopes::class)->handle($representation, [Scope::ProfileView, Scope::PaymentsManage], RepresentationMethod::Declaration, 'I declare', now(), 'self extension'));
+    }
+
+    public function test_configuration_limits_methods_and_grantable_scope(): void
+    {
+        config(['identity.representation.methods' => ['role_decision'], 'identity.representation.grantable_scopes' => ['profile.view']]);
+        $grant = $this->app->make(GrantRepresentation::class);
+
+        foreach ([
+            fn () => $grant->handle($this->parent, $this->child, [Scope::ProfileView], RepresentationMethod::Declaration, 'statement', now(), 'disabled method'),
+            fn () => $grant->handle($this->parent, $this->child, [Scope::ProfileView, Scope::PaymentsManage], RepresentationMethod::RoleDecision, 'decision 7/2026', now(), 'scope outside'),
+        ] as $attempt) {
+            try {
+                $attempt();
+                $this->fail('Grant outside the configuration must be refused.');
+            } catch (RepresentationNotAllowed) {
+            }
+        }
+
+        $allowed = $grant->handle($this->parent, $this->child, [Scope::ProfileView], RepresentationMethod::RoleDecision, 'decision 7/2026', now()->subSecond(), 'within configuration');
+        $this->assertSame(['profile.view'], $allowed->scopes);
+    }
+
+    public function test_scope_change_period_has_its_own_method_and_basis(): void
+    {
+        $representation = $this->grant([Scope::ProfileView]);
+
+        $this->app->make(ChangeRepresentationScopes::class)->handle($representation, [Scope::ProfileView, Scope::ProfileUpdate], RepresentationMethod::PartiesAcceptance, 'acceptance no. 42', now(), 'extended by agreement');
+
+        $history = $representation->history();
+        $this->assertSame([RepresentationMethod::Document, RepresentationMethod::PartiesAcceptance], $history->pluck('method')->all());
+        $this->assertSame(['birth certificate no. AB-123 checked', 'acceptance no. 42'], $history->pluck('basis')->all());
+    }
+
+    public function test_basis_is_required(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->app->make(GrantRepresentation::class)->handle($this->parent, $this->child, [Scope::ProfileView], RepresentationMethod::Document, '   ', now(), 'no basis');
     }
 }

@@ -2,7 +2,7 @@
 
 namespace App\Domain\Identity\Models;
 
-use App\Domain\Identity\Enums\RepresentationKind;
+use App\Domain\Identity\Enums\RepresentationMethod;
 use App\Domain\Identity\Enums\RepresentationScope;
 use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
@@ -13,8 +13,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Representation as a relation in time (E1.5): changing scopes or kind opens a new period, ending it
- * closes the period; history stays. Key: representative + represented person.
+ * REPRESENTATION as a relation in time (E1.5, Z-025): changing scopes opens a new period, ending it closes
+ * the period; history stays. Each period records method, basis and establishing ACTOR. Key: representative
+ * + represented person. No special parent–child type: that is one use of a representation.
  */
 class Representation extends Model implements ClassifiesData
 {
@@ -40,7 +41,7 @@ class Representation extends Model implements ClassifiesData
 
     protected function casts(): array
     {
-        return ['kind' => RepresentationKind::class, 'scopes' => 'array'];
+        return ['method' => RepresentationMethod::class, 'scopes' => 'array'];
     }
 
     public function representative(): BelongsTo
@@ -74,8 +75,11 @@ class Representation extends Model implements ClassifiesData
             'public_id' => DataClass::Internal,
             'representative_person_id' => DataClass::Internal,
             'represented_person_id' => DataClass::Internal,
-            'kind' => DataClass::Internal,
             'scopes' => DataClass::Internal,
+            'method' => DataClass::Internal,
+            'basis' => DataClass::Restricted,
+            'established_by_type' => DataClass::Internal,
+            'established_by_id' => DataClass::Internal,
             'status' => DataClass::Internal,
             'valid_from' => DataClass::Internal,
             'valid_to' => DataClass::Internal,

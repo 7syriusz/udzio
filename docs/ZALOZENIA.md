@@ -152,21 +152,35 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **Weryfikacja:** modele testowe `DefinitionProbe` i `DefinitionResultProbe`; 9 nowych przypadków, w tym
   test współbieżności publikacji. Migracje testowe mają datę `9999_…`, żeby zawsze działały po migracjach aplikacji.
 
-## Z-017 — Klasyfikacja danych i polityki klas (E1.7, funkcjonalne, 2026-09-26)
+## Z-017 — Klasyfikacja danych i polityki klas (E1.7, zaktualizowane 2026-09-27; decyzja techniczno-bezpieczeństwowa)
 
-- **Metadane pól:** klasa jest przypisana do pola modelu (`dataClassification()`). Model audytowany musi
-  sklasyfikować każde zapisywane pole; pole bez klasy nie trafia ani do audytu, ani do eksportu.
-- **F — domyślne polityki** (`config/data_classification.php`, do przeglądu przez Jakuba):
-  - PUBLIC i INTERNAL: wartości w audycie, eksport pełny;
-  - RESTRICTED (np. imię, e-mail): w audycie tylko fakt zmiany (`[REDACTED]`), eksport pełny dla uprawnionych;
-  - SPECIAL CATEGORY (np. przynależność polityczna, zdrowie): w audycie `[REDACTED]`, odczyt audytowany,
-    w eksporcie `[REDACTED]`;
-  - SECRET (np. hasło, token, tajny głos): w audycie `[REDACTED]`, odczyt audytowany, w eksporcie pominięte.
-- **Klasa ustalana przez scenariusz:** Core daje domyślną klasę pola; scenariusz może ją podnieść
-  (A5 §12). Konfiguracja klas per scenariusz powstanie razem z pierwszym scenariuszem, który tego potrzebuje.
-- **Poza zakresem E1.7:** szyfrowanie danych w spoczynku, retencja i anonimizacja (późniejsze etapy),
-  uprawnienie do eksportu danych SPECIAL CATEGORY bez redakcji (E3, ROLE/PERMISSION).
-- **Weryfikacja:** 7 nowych przypadków; pełny zestaw 82 testy / 252 asercje, także w losowej kolejności.
+**Status:** rekomendowane wartości domyślne — do akceptacji Jakuba (skutki dla użytkownika poniżej).
+Klasa jest metadaną pola (`dataClassification()`); model audytowany musi sklasyfikować każde zapisywane
+pole, a pole bez klasy nie trafia ani do audytu, ani do eksportu. Scenariusz może podnieść klasę pola
+(A5 §12). Wartości: `config/data_classification.php`.
+
+| Klasa (przykłady) | Wartość w historii zmian | Eksport | Odczyt zapisywany | Przechowywanie | Po upływie / na żądanie usunięcia |
+|---|---|---|---|---|---|
+| PUBLIC (nazwa wydarzenia) | widoczna | pełny | nie | dopóki istnieje rekord | zostaje |
+| INTERNAL (statusy, daty, identyfikatory) | widoczna | pełny | nie | dopóki istnieje rekord | zostaje |
+| RESTRICTED (imię, nazwisko, e-mail, telefon, data urodzenia) | tylko fakt zmiany | pełny dla uprawnionych | nie | 2 lata od końca ostatniej relacji | anonimizacja |
+| SPECIAL CATEGORY (zdrowie, przynależność polityczna) | tylko fakt zmiany | zamaskowany | tak | 1 rok od końca celu | usunięcie |
+| SECRET (hasło, tokeny, sekret MFA, tajny głos) | tylko fakt zmiany | nigdy | tak | tylko do końca celu | usunięcie |
+
+**Skutki widoczne dla użytkownika:**
+- W historii zmian operator widzi, **że** zmieniono np. nazwisko albo e-mail, ale nie widzi poprzedniej ani
+  nowej wartości danych osobowych.
+- Eksport dla uprawnionej osoby zawiera dane kontaktowe; dane szczególnej kategorii są zamaskowane, a hasła
+  i sekrety nigdy nie są eksportowane.
+- Każde wyświetlenie danych szczególnej kategorii zostawia ślad „kto, kiedy, jakie pola, w jakim celu”.
+- Po 2 latach od zakończenia ostatniej relacji dane osobowe są anonimizowane; rozliczenia i statystyki
+  zostają, ale bez możliwości wskazania osoby. Dane szczególnej kategorii są usuwane po roku od końca celu.
+- Żądanie usunięcia danych działa tak samo jak koniec retencji: dane osobowe znikają lub są anonimizowane,
+  historia rozliczeniowa i raportowa zostaje (A5 §12).
+
+**Wdrożenie:** redakcja w audycie i eksporcie oraz audyt odczytu działają od E1.7. Retencja i usuwanie są
+na razie polityką w konfiguracji (`retention_days`, `erasure`); harmonogram czyszczenia i obsługa żądań
+usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfrowanie w spoczynku — E12.
 
 ## Z-018 — Idempotencja operacji (E1.8, techniczne + funkcjonalne, 2026-09-26)
 
@@ -201,23 +215,24 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **Identyfikator:** publiczny ULID (`public_id`) jest niezmienny; na zewnątrz nigdy wewnętrzne `id`.
 - **Weryfikacja:** 10 nowych przypadków (w tym 4 warianty walidacji).
 
-## Z-020 — CONTACT i weryfikacja kanału (E2.2, funkcjonalne, 2026-09-26)
+## Z-020 — CONTACT i weryfikacja kanału (E2.2, zaktualizowane 2026-09-27; funkcjonalne)
 
 - **Kontakt ≠ osoba:** kontakt ma jednego właściciela (PERSON). Ten sam adres może mieć kilka osób
-  (wspólny e-mail rodziny) — nigdy ich nie łączy. Kontakt opiekuna używany w sprawie dziecka pozostaje
-  kontaktem opiekuna; powiązanie dziecka z opiekunem da relacja reprezentacji (E2.7).
-- **F — normalizacja:** e-mail przycinany i zapisywany małymi literami; telefon w formacie E.164. Numer bez
+  (wspólny e-mail rodziny) — nigdy ich nie łączy. Kontakt używany w cudzej sprawie pozostaje kontaktem
+  właściciela; powiązanie osób daje REPRESENTATION (Z-025).
+- **Normalizacja:** e-mail przycinany i zapisywany małymi literami; telefon w formacie E.164. Numer bez
   prefiksu dostaje kod kraju z `config/identity.php` (domyślnie +48), `00` zamieniane na `+`.
 - **Niezmienność:** adres i właściciel kontaktu się nie zmieniają; nowy adres = nowy kontakt. Usunięcie
-  ustawia `removed_at` (historia zostaje) i unieważnia oczekujące kody. Ta sama osoba nie ma dwóch
-  aktywnych identycznych kontaktów (unikalna kolumna generowana `active_key`).
-- **F — weryfikacja kodem:** 6 cyfr, ważny 30 min, 5 błędnych prób unieważnia kod, 5 próśb o kod na godzinę
-  na kontakt; nowy kod unieważnia poprzedni. Przechowywany jest tylko HMAC-SHA256 kodu. Komunikat błędu
-  nie zdradza przyczyny. Wszystkie wartości w `config/identity.php`.
-- **F — SMS:** operator SMS nie jest jeszcze wybrany. Weryfikacja telefonu zapisuje kod, ale go nie
-  dostarcza (ostrzeżenie w logu, bez kodu). Do uzupełnienia przy wyborze operatora (E10 lub wcześniej).
-- **Klasy danych:** adres RESTRICTED, pozostałe pola INTERNAL.
-- **Weryfikacja:** 15 nowych przypadków (w tym 4 warianty normalizacji).
+  ustawia `removed_at` (historia zostaje) i unieważnia oczekujące kody.
+- **Weryfikacja kodem:** 6 cyfr, ważny 30 min, 5 błędnych prób unieważnia kod, 5 próśb na godzinę; nowy kod
+  unieważnia poprzedni; przechowywany tylko HMAC-SHA256 kodu. Wartości w `config/identity.php`.
+- **Decyzja — telefon bez operatora SMS:** dopóki operator nie jest wybrany, telefon **nie może** otrzymać
+  statusu zweryfikowanego (blokada w modelu `Contact`), nie powstaje żaden kod, a ekran i API nie informują
+  o wysłaniu kodu — pokazują „potwierdzanie tego kanału nie jest jeszcze dostępne”.
+- **Kontrakt dostawcy:** `App\Domain\Identity\Contracts\ContactCodeSender` (`send(contact, code, ttl)`),
+  rejestr `identity.contacts.senders` (e-mail: `MailContactCodeSender`, telefon: `null`). Podłączenie
+  operatora SMS = klasa implementująca kontrakt + wpis w konfiguracji; reszta procesu bez zmian.
+- **Weryfikacja:** 15 przypadków z E2.2 + 3 dla kontraktu i blokady telefonu.
 
 ## Z-021 — ACCOUNT, rejestracja i logowanie (E2.3, techniczne + funkcjonalne, 2026-09-26)
 
@@ -238,22 +253,21 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 - **Weryfikacja:** 9 nowych przypadków; zestaw po zmianie tabeli `users` (zamiast `name`: `given_name`,
   `family_name`, `person_id`).
 
-## Z-022 — Weryfikacja e-maila konta i automatyczne powiązanie z PERSON (E2.4, funkcjonalne, 2026-09-26)
+## Z-022 — Weryfikacja e-maila konta i powiązanie z PERSON (E2.4, zaktualizowane 2026-09-27; funkcjonalne)
 
-- **Weryfikacja:** podpisany link Fortify/Laravel (ważny 60 min), wysyłany po rejestracji; ponowne wysłanie
-  z ekranu `/email/verify`. Potwierdzenie jest audytowane z powodem.
-- **F — reguła powiązania** (`ResolveAccountPerson`, uruchamiana zdarzeniem `Verified`):
-  - brak osoby z tym samym **zweryfikowanym**, aktywnym kontaktem e-mail → nowa PERSON z danych
-    rejestracji + zweryfikowany kontakt e-mail;
-  - dokładnie jedna taka osoba bez konta → konto dołącza do niej; jej tożsamość i historia bez zmian (A5-02);
-  - kilka osób albo osoba z innym kontem → **konflikt**: nic nie jest łączone ani tworzone, wpis audytu
-    `account.person_link_conflict` (wynik `failed`) do ręcznego rozstrzygnięcia (operator / MERGE).
-    Do tego czasu konto działa bez PERSON.
-- **Bez weryfikacji nie ma powiązania:** niezweryfikowany kontakt nigdy nie powoduje dołączenia; konto
-  z niezweryfikowanym e-mailem nie jest łączone.
-- **Do przeglądu przez Jakuba:** czy przy konflikcie użytkownik ma widzieć komunikat i ścieżkę zgłoszenia
-  (ekran w E2.8), czy wystarczy obsługa przez operatora.
-- **Weryfikacja:** 8 nowych przypadków.
+- **Weryfikacja:** podpisany link (ważny 60 min) wysyłany po rejestracji; ponowne wysłanie z `/email/verify`.
+- **Jednoznaczny przypadek łączy automatycznie:** jedna osoba z tym samym zweryfikowanym, aktywnym kontaktem
+  e-mail i bez konta → konto dołącza do niej; jej tożsamość i historia bez zmian (A5-02). Brak takiej osoby
+  → nowa PERSON z danych rejestracji + zweryfikowany kontakt.
+- **Decyzja — niejednoznaczność:** kilka możliwych osób (albo osoba z innym kontem) → system **nie scala
+  i nie łączy** niczego automatycznie i nie pokazuje użytkownikowi danych znalezionych osób ani organizacji.
+  Otwiera kontrolowaną procedurę naprawczą `PersonLinkReview` (jedno otwarte zgłoszenie na konto, lista
+  kandydatów widoczna tylko dla roli rozstrzygającej) i zapisuje audyt `account.person_link_conflict`.
+  Użytkownik widzi neutralny komunikat o dodatkowej weryfikacji z numerem zgłoszenia.
+- **Rozstrzygnięcie:** `ResolvePersonLinkReview` — po dodatkowej weryfikacji łączy konto z jednym z kandydatów
+  albo z nową osobą; inna osoba jest odrzucana; rozstrzygnięte zgłoszenie jest niezmienne i audytowane.
+  Uprawnienie do rozstrzygania i ekran operatora — E3 (role).
+- **Bez weryfikacji nie ma powiązania:** niezweryfikowany kontakt nigdy nie powoduje dołączenia.
 
 ## Z-023 — Reset hasła, limity prób i sesje (E2.5, techniczne + funkcjonalne, 2026-09-26)
 
@@ -285,25 +299,27 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
   od E3, gdy powstaną role. Ekran włączania MFA — E2.8.
 - **Weryfikacja:** 8 nowych przypadków.
 
-## Z-025 — Działanie w imieniu (reprezentacja) (E2.7, funkcjonalne, 2026-09-26)
+## Z-025 — REPRESENTATION (E2.7, zaktualizowane 2026-09-27; funkcjonalne)
 
-- **Relacja w czasie:** `representations` (wzorzec E1.5) — przedstawiciel PERSON → reprezentowana PERSON,
-  rodzaj (`guardian` — rodzic/opiekun prawny, `authorized` — upoważnienie), jawna lista zakresów, okres,
-  status i historia. Zmiana zakresów otwiera nowy okres; zakończenie zamyka okres i od tej chwili odbiera dostęp.
-- **F — zakresy:** `profile.view`, `profile.update`, `contacts.view`, `contacts.manage`,
-  `registrations.manage`, `payments.manage`, `consents.manage`. Reprezentacja daje tylko wymienione zakresy
-  (A5 §1.4). Kolejne etapy dopisują własne zakresy do `RepresentationScope`.
-- **Sprawdzenie:** `ActOnBehalf` — osoba działa za siebie bez reprezentacji; za kogoś innego tylko przy
-  aktywnej (w tej chwili) reprezentacji z danym zakresem. Odmowa = `AccessDenied` z SUBJECT-em
-  reprezentowanej osoby (audyt E1.4). Działanie jest audytowane wpisem `person.acted_on_behalf`
-  (reprezentacja, przedstawiciel, zakres) obok zwykłego audytu zmiany: ACTOR = konto przedstawiciela,
-  SUBJECT = osoba reprezentowana (A5-03).
-- **F — kto nadaje reprezentację:** `GrantRepresentation` nie sprawdza uprawnień wywołującego. W E2 nadaje ją
-  operator lub zaufany proces (np. zapis dziecka przez rodzica w E5). Samodzielne zgłoszenie opiekuństwa
-  przez użytkownika i jego weryfikacja — do decyzji przy E3/E5 (uprawnienia) — **do przeglądu przez Jakuba**.
-- **Kierunek:** reprezentacja działa w jedną stronę; osoba nie reprezentuje samej siebie; konto bez PERSON nie
-  reprezentuje nikogo.
-- **Weryfikacja:** 8 nowych przypadków.
+- **Uniwersalna relacja w czasie** (`representations`, wzorzec E1.5): reprezentant PERSON → reprezentowana
+  PERSON. CORE **nie ma** typu „rodzic–dziecko” — to jedno z zastosowań reprezentacji.
+- **Każdy okres zapisuje:** reprezentanta, reprezentowanego, zakres (`scopes`), sposób ustanowienia
+  (`method`), źródło/podstawę (`basis`, np. numer dokumentu, decyzji lub akceptacji; klasa RESTRICTED),
+  status, okres obowiązywania, ACTOR-a ustanawiającego (`established_by_*`) oraz historię zmian (audyt).
+- **Sposoby ustanowienia:** `parties_acceptance` (akceptacja stron), `declaration` (oświadczenie),
+  `role_decision` (decyzja uprawnionej roli), `document` (dokument), `additional_verification`.
+  Konfiguracja (`identity.representation.methods`) wybiera dostępne sposoby, a `grantable_scopes` —
+  dozwolony zakres. Wymagane potwierdzenia wykonuje przepływ wywołujący (ekran/rola, E3+) i wskazuje je
+  w `basis`.
+- **Reguły niekonfigurowalne:** nikt nie ustanawia ani nie rozszerza reprezentacji dla samego siebie
+  (ACTOR ≠ reprezentant); zakres poza `grantable_scopes` jest odrzucany; wymagany co najmniej jeden zakres
+  i podstawa; osoba nie reprezentuje samej siebie.
+- **Zakresy:** `profile.view`, `profile.update`, `contacts.view`, `contacts.manage`, `registrations.manage`,
+  `payments.manage`, `consents.manage` — reprezentacja daje tylko wymienione (A5 §1.4).
+- **Sprawdzenie działania:** `ActOnBehalf` — aktywna reprezentacja z zakresem w chwili działania; odmowa
+  `AccessDenied` (audyt E1.4); działanie audytowane jako `person.acted_on_behalf`: ACTOR = konto
+  reprezentanta, SUBJECT = osoba reprezentowana (A5-03). Zmiana zakresu = nowy okres z własnym sposobem
+  i podstawą; zakończenie odbiera dostęp.
 
 ## Z-026 — Ekrany konta (E2.8, funkcjonalne, 2026-09-26)
 
@@ -313,8 +329,25 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
   i edycja w zakresie). Po zalogowaniu użytkownik trafia na `/account`.
 - **F — cudze zasoby = 404:** cudzy kontakt albo osoba bez reprezentacji z potrzebnym zakresem odpowiada 404
   (nie ujawnia istnienia), a odmowa jest audytowana (E1.4).
-- **F — konto bez PERSON** (konflikt z E2.4): widzi wyjaśnienie i prośbę o kontakt z organizatorem; ekrany
-  danych osobowych są niedostępne. Ścieżka zgłoszenia — do przeglądu (Z-022).
+- **Konto bez PERSON:** przy otwartej procedurze naprawczej (Z-022) widzi neutralny komunikat o dodatkowej
+  weryfikacji z numerem zgłoszenia, bez danych innych osób; przed weryfikacją e-maila — prośbę o jej wykonanie.
+  Ekrany danych osobowych są wtedy niedostępne.
 - **Wygląd:** proste widoki Blade + Tailwind, etykiety pól, komunikaty błędów przy polach, bez JavaScriptu.
   Dopracowanie wyglądu i dostępności — przy ekranach operatora (E3+).
 - **Weryfikacja:** 10 nowych przypadków HTTP (w tym odmowy dostępu).
+
+## Z-027 — Pusta baza i ochrona przed skasowaniem (2026-09-27, techniczne)
+
+- **Brak danych przykładowych:** `DatabaseSeeder` jest pusty; UDZIO nie ma seederów demonstracyjnych.
+  Testy budują dane fabrykami i akcjami domenowymi. Po `php artisan migrate` tabele biznesowe są puste.
+- **Ochrona:** `DestructiveCommandGuard` (wywoływany w `AppServiceProvider`) blokuje `migrate:fresh`,
+  `migrate:refresh`, `migrate:reset`, `migrate:rollback` i `db:wipe` (mechanizm Laravel
+  `DB::prohibitDestructiveCommands`), chyba że środowisko to `local` albo `testing` **i** każda chroniona
+  baza (`mysql`, `audit`) ma nazwę `*_test` albo jest jawnie wskazana w `DB_ALLOW_DESTRUCTIVE_ON`.
+  Produkcja jest chroniona zawsze, także z tą zmienną; lokalna baza deweloperska `udzio` — domyślnie.
+- **Świadoma odbudowa bazy deweloperskiej:** `DB_ALLOW_DESTRUCTIVE_ON=udzio` tylko na czas jednego polecenia,
+  np. `DB_ALLOW_DESTRUCTIVE_ON=udzio DB_USERNAME=root DB_PASSWORD=root php artisan migrate:fresh`.
+- **Zdarzenie z 2026-09-26:** w E2.2 wykonano `migrate:fresh` na lokalnej bazie deweloperskiej `udzio`
+  (kontener `udzio-mysql`, port 127.0.0.1:3307) — nie produkcyjnej ani współdzielonej. Polecenie przerwało
+  się na migracji audytu (brak uprawnień do wyzwalaczy dla konta `udzio`), zostawiając bazę w połowie.
+  2026-09-27 baza została utworzona od nowa i zmigrowana od zera (konto administratora zgodnie z Z-012).

@@ -25,6 +25,9 @@ php artisan serve --host=127.0.0.1 --port=8000
 ```
 
 Nie generuj ponownie `APP_KEY` w istniejącej instalacji: służy również do odszyfrowywania danych.
+Projekt nie ma danych przykładowych: nie uruchamiaj `db:seed` w oczekiwaniu na dane demonstracyjne.
+Polecenia kasujące bazę (`migrate:fresh`, `db:wipe` i podobne) są zablokowane poza bazami `*_test`;
+świadoma odbudowa bazy deweloperskiej wymaga jednorazowego `DB_ALLOW_DESTRUCTIVE_ON=udzio` (Z-027).
 Skrypt inicjalizacji MySQL tworzy obie bazy przy pierwszym uruchomieniu pustego wolumenu.
 `docker compose stop` zatrzymuje bazę z zachowaniem danych; `down -v` usuwa wolumen i dane.
 Przy zajętym porcie 3307 sprawdź uruchomione usługi przed zmianą portu w Compose i `.env`.

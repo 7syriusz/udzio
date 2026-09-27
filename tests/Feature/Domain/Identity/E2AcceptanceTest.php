@@ -6,7 +6,7 @@ use App\Domain\Identity\Actions\AddContact;
 use App\Domain\Identity\Actions\GrantRepresentation;
 use App\Domain\Identity\Actions\RegisterPerson;
 use App\Domain\Identity\Enums\ContactChannel;
-use App\Domain\Identity\Enums\RepresentationKind;
+use App\Domain\Identity\Enums\RepresentationMethod;
 use App\Domain\Identity\Enums\RepresentationScope;
 use App\Domain\Identity\Models\Person;
 use App\Domain\Platform\AuditReason;
@@ -36,8 +36,7 @@ class E2AcceptanceTest extends TestCase
         $daughter = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Zosia', 'family_name' => 'Nowak', 'birth_date' => '2016-03-10']);
         $email = $this->app->make(AddContact::class)->handle($mother, ContactChannel::Email, 'maria@example.test');
         $reason->because('confirmed by organizer by phone', fn () => $email->update(['verified_at' => now()]));
-        $this->app->make(GrantRepresentation::class)->handle($mother, $daughter, RepresentationKind::Guardian,
-            [RepresentationScope::ProfileView, RepresentationScope::ProfileUpdate], now()->subDay(), 'guardian stated at registration desk');
+        $this->app->make(GrantRepresentation::class)->handle($mother, $daughter, [RepresentationScope::ProfileView, RepresentationScope::ProfileUpdate], RepresentationMethod::Document, 'birth certificate no. AB-123 checked', now()->subDay(), 'guardian stated at registration desk');
 
         // A5-01: two organizations refer to the same daughter; no duplicate PERSON.
         foreach (['CLUB-A', 'SCHOOL-B'] as $context) {

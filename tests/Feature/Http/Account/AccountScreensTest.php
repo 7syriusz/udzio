@@ -6,7 +6,7 @@ use App\Domain\Identity\Actions\AddContact;
 use App\Domain\Identity\Actions\GrantRepresentation;
 use App\Domain\Identity\Actions\RegisterPerson;
 use App\Domain\Identity\Enums\ContactChannel;
-use App\Domain\Identity\Enums\RepresentationKind;
+use App\Domain\Identity\Enums\RepresentationMethod;
 use App\Domain\Identity\Enums\RepresentationScope as Scope;
 use App\Domain\Identity\Models\Contact;
 use App\Domain\Identity\Models\Person;
@@ -134,10 +134,10 @@ class AccountScreensTest extends TestCase
     {
         $parent = $this->person('Maria');
         $child = $this->person('Zosia');
-        $this->app->make(GrantRepresentation::class)->handle($parent, $child, RepresentationKind::Guardian, [Scope::ProfileView, Scope::ProfileUpdate], now()->subDay(), 'operator');
+        $this->app->make(GrantRepresentation::class)->handle($parent, $child, [Scope::ProfileView, Scope::ProfileUpdate], RepresentationMethod::Document, 'birth certificate no. AB-123 checked', now()->subDay(), 'operator');
         $this->actingAs($this->holder($parent));
 
-        $this->get('/account/represented')->assertOk()->assertSee('Zosia Nowak')->assertSee('opiekun');
+        $this->get('/account/represented')->assertOk()->assertSee('Zosia Nowak')->assertSee('dokument');
         $this->get("/account/represented/{$child->public_id}")->assertOk()->assertSee('Zapisz');
         $this->put("/account/represented/{$child->public_id}", ['given_name' => 'Zofia', 'family_name' => 'Nowak'])->assertRedirect();
 
@@ -149,7 +149,7 @@ class AccountScreensTest extends TestCase
     {
         $parent = $this->person('Maria');
         $child = $this->person('Zosia');
-        $this->app->make(GrantRepresentation::class)->handle($parent, $child, RepresentationKind::Guardian, [Scope::ProfileView], now()->subDay(), 'operator');
+        $this->app->make(GrantRepresentation::class)->handle($parent, $child, [Scope::ProfileView], RepresentationMethod::Document, 'birth certificate no. AB-123 checked', now()->subDay(), 'operator');
         $this->actingAs($this->holder($parent));
 
         $this->get("/account/represented/{$child->public_id}")->assertOk()->assertDontSee('Zapisz');
@@ -168,5 +168,19 @@ class AccountScreensTest extends TestCase
 
         $denial = AuditEntry::on('audit')->where('action', 'access.denied')->sole();
         $this->assertSame(['person', $stranger->public_id], [$denial->subject_type, $denial->subject_id]);
+    }
+
+    public function test_phone_screen_never_claims_that_a_code_was_sent(): void
+    {
+        Notification::fake();
+        $this->actingAs($this->holder());
+        $this->post('/account/contacts', ['channel' => 'phone', 'value' => '600100200']);
+        $phone = Contact::query()->sole();
+
+        $this->get('/account/contacts')->assertSee('potwierdzanie tego kanału nie jest jeszcze dostępne')->assertDontSee('wyślij kod');
+        $this->post("/account/contacts/{$phone->public_id}/verification")->assertSessionHasErrors('contact')->assertSessionMissing('status');
+
+        $this->assertFalse($phone->fresh()->isVerified());
+        Notification::assertNothingSent();
     }
 }

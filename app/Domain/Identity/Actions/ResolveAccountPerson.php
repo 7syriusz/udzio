@@ -3,8 +3,10 @@
 namespace App\Domain\Identity\Actions;
 
 use App\Domain\Identity\Enums\ContactChannel;
+use App\Domain\Identity\Enums\PersonLinkReviewStatus;
 use App\Domain\Identity\Models\Contact;
 use App\Domain\Identity\Models\Person;
+use App\Domain\Identity\Models\PersonLinkReview;
 use App\Domain\Platform\Actions\RecordAudit;
 use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Enums\AuditResult;
@@ -14,8 +16,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * After the account e-mail is verified (A5-02, Z-022): link the account to the one PERSON that has the
  * same verified e-mail contact, or create a new PERSON when there is none. Several candidates, or a
- * candidate that already has an account, are a conflict — nothing is linked and the case is audited for
- * manual resolution. Unverified contacts never cause a link.
+ * candidate that already has an account, are a conflict: nothing is linked or merged, and a controlled
+ * repair procedure (PersonLinkReview) is opened. Unverified contacts never cause a link.
  */
 final class ResolveAccountPerson
 {
@@ -34,6 +36,15 @@ final class ResolveAccountPerson
         private readonly AuditReason $reason,
         private readonly RecordAudit $audit,
     ) {}
+
+    /** @param list<int> $candidates */
+    private function openReview(User $account, array $candidates): void
+    {
+        if (PersonLinkReview::query()->where('user_id', $account->id)->where('status', PersonLinkReviewStatus::Open)->exists()) {
+            return;
+        }
+        PersonLinkReview::create(['user_id' => $account->id, 'status' => PersonLinkReviewStatus::Open, 'candidate_person_ids' => $candidates]);
+    }
 
     public function handle(User $account): string
     {
@@ -55,6 +66,7 @@ final class ResolveAccountPerson
                 $this->audit->handle('account.person_link_conflict', 'account', (string) $account->id, AuditResult::Failed,
                     reason: 'verified account e-mail matches verified contacts of several people or of a person with another account',
                     after: ['candidates' => $candidates->count()]);
+                $this->openReview($account, $candidates->map(fn ($id) => (int) $id)->sort()->values()->all());
 
                 return self::CONFLICT;
             }

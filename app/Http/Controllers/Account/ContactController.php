@@ -7,6 +7,7 @@ use App\Domain\Identity\Actions\RemoveContact;
 use App\Domain\Identity\Actions\RequestContactVerification;
 use App\Domain\Identity\Actions\VerifyContact;
 use App\Domain\Identity\Enums\ContactChannel;
+use App\Domain\Identity\Exceptions\ContactChannelUnavailable;
 use App\Domain\Identity\Exceptions\ContactVerificationFailed;
 use App\Domain\Identity\Models\Contact;
 use App\Domain\Identity\Models\Person;
@@ -43,7 +44,11 @@ class ContactController extends Controller
 
     public function sendVerification(Request $request, Contact $contact, RequestContactVerification $send): RedirectResponse
     {
-        $send->handle($this->own($request, $contact, 'contact.verify'));
+        try {
+            $send->handle($this->own($request, $contact, 'contact.verify'));
+        } catch (ContactChannelUnavailable) {
+            throw ValidationException::withMessages(['contact' => 'Potwierdzanie numerów telefonu nie jest jeszcze dostępne.']);
+        }
 
         return back()->with('status', 'Wysłaliśmy kod.');
     }

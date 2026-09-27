@@ -21,6 +21,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Protection Against Erasing The Database
+    |--------------------------------------------------------------------------
+    |
+    | migrate:fresh, migrate:refresh, migrate:reset, migrate:rollback and db:wipe run only in the local or
+    | testing environment on databases named *_test, or on the one database named here (explicit opt-in).
+    | See App\Domain\Platform\Database\DestructiveCommandGuard.
+    |
+    */
+
+    'allow_destructive_on' => env('DB_ALLOW_DESTRUCTIVE_ON'),
+
+    'guarded_connections' => ['mysql', 'audit'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
     |

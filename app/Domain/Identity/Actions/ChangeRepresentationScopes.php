@@ -2,25 +2,26 @@
 
 namespace App\Domain\Identity\Actions;
 
+use App\Domain\Identity\Enums\RepresentationMethod;
 use App\Domain\Identity\Enums\RepresentationScope;
 use App\Domain\Identity\Models\Representation;
 use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Enums\RelationStatus;
 use DateTimeInterface;
-use InvalidArgumentException;
 
-/** New scopes from `$at`: the current period closes, a new one opens (history of what was allowed when). */
+/**
+ * New scopes from `$at`: the current period closes, a new one opens with its own method, basis and
+ * establishing ACTOR (history of what was allowed when, and why). Same rules as establishing (Z-025).
+ */
 final class ChangeRepresentationScopes
 {
-    public function __construct(private readonly AuditReason $reason) {}
+    public function __construct(private readonly AuditReason $reason, private readonly RepresentationRules $rules) {}
 
     /** @param list<RepresentationScope> $scopes */
-    public function handle(Representation $representation, array $scopes, DateTimeInterface $at, string $reason): Representation
+    public function handle(Representation $representation, array $scopes, RepresentationMethod $method, string $basis, DateTimeInterface $at, string $reason): Representation
     {
-        if ($scopes === []) {
-            throw new InvalidArgumentException('Use EndRepresentation to remove all scopes.');
-        }
+        $attributes = $this->rules->attributes($representation->representative, $scopes, $method, $basis);
 
-        return $this->reason->because($reason, fn () => $representation->transition(RelationStatus::Active, $at, ['scopes' => RepresentationScope::normalize($scopes)]));
+        return $this->reason->because($reason, fn () => $representation->transition(RelationStatus::Active, $at, $attributes));
     }
 }

@@ -155,24 +155,62 @@ final class AccessDecider
         ));
     }
 
+    /**
+     * Internal IDs of the organizations where the account holds `$permission` at the moment — the same rules
+     * as decide(), evaluated for all targets at once (data isolation, E3.7).
+     *
+     * @return list<int>
+     */
+    public function grantedOrganizationIds(User $account, Permission $permission, ?DateTimeInterface $at = null): array
+    {
+        $at = CarbonImmutable::instance($at ?? CarbonImmutable::now('UTC'))->utc();
+        $ids = [];
+        $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($at)
+            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get();
+        foreach ($assignments as $assignment) {
+            if ($this->assignmentOutcome($assignment, $permission, $at)[0] === 'applicable') {
+                $ids = [...$ids, ...$assignment->coveredOrganizationIds($at)];
+            }
+        }
+        $ids = array_values(array_unique($ids));
+
+        return Organization::query()->whereKey($ids)->get()
+            ->filter(fn (Organization $organization) => $organization->isActiveAt($at))
+            ->modelKeys();
+    }
+
+    /**
+     * Whether the assignment can grant `$permission` at all at the moment, regardless of the target.
+     *
+     * @return array{0: string, 1: ?int}
+     */
+    private function assignmentOutcome(RoleAssignment $assignment, Permission $permission, CarbonImmutable $at): array
+    {
+        $version = $assignment->role->versionAt($at);
+        if ($version === null || $version->content['status'] !== AccessRoleStatus::Active->value) {
+            return ['role_inactive', null];
+        }
+        if (! in_array($permission->value, $version->content['permissions'], true)) {
+            return ['permission_missing', null];
+        }
+        if (! $assignment->role->organization->isActiveAt($at)) {
+            return ['role_organization_inactive', null];
+        }
+        if (! $assignment->scopeOrganization->isActiveAt($at)) {
+            return ['scope_inactive', null];
+        }
+
+        return ['applicable', $version->version];
+    }
+
     /** @return array{0: string, 1: array<string, mixed>} */
     private function evaluate(RoleAssignment $assignment, Permission $permission, Organization $target, CarbonImmutable $at): array
     {
-        $role = $assignment->role;
-        $version = $role->versionAt($at);
-        if ($version === null || $version->content['status'] !== AccessRoleStatus::Active->value) {
-            return ['role_inactive', []];
-        }
-        if (! in_array($permission->value, $version->content['permissions'], true)) {
-            return ['permission_missing', []];
-        }
-        if (! $role->organization->isActiveAt($at)) {
-            return ['role_organization_inactive', []];
+        [$outcome, $roleVersion] = $this->assignmentOutcome($assignment, $permission, $at);
+        if ($outcome !== 'applicable') {
+            return [$outcome, []];
         }
         $scope = $assignment->scopeOrganization;
-        if (! $scope->isActiveAt($at)) {
-            return ['scope_inactive', []];
-        }
         $path = $this->structurePath($target, $scope, $at);
         if ($path === null || ($path !== [] && $assignment->scope_inheritance !== ScopeInheritance::UnitAndDescendants)) {
             return ['scope_not_covering', []];
@@ -180,8 +218,8 @@ final class AccessDecider
 
         return ['match', [
             'assignment' => $assignment->public_id,
-            'role' => $role->public_id,
-            'role_version' => $version->version,
+            'role' => $assignment->role->public_id,
+            'role_version' => $roleVersion,
             'scope_organization' => $scope->public_id,
             'scope_inheritance' => $assignment->scope_inheritance->value,
             'structure_path' => $path,

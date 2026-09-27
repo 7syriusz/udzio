@@ -269,3 +269,10 @@ To jedyne miejsce decyzji — nie sprawdzaj ról ręcznie w kontrolerach. Ekrany
 `SystemAuthority::run($powód, fn () => ...)`. Historyczna decyzja: `$access->decide($konto, $uprawnienie,
 $jednostka, $chwila)`. Szczegóły: Z-033.
 
+## 22. Izolacja danych (E3.7)
+
+Listy i odczyty danych organizacji buduj przez `DataVisibility` (`organizations`, `memberships`, `people`,
+`findOrganization`, `findPerson`) albo — w nowych modułach — `whereIn('organization_id',
+$access->grantedOrganizationIds($konto, Permission::…))`. Nigdy nie filtruj zakresu ręcznie. Rekord spoza
+zakresu: 404 z audytem odmowy (`findX` robi to sam). Szczegóły: Z-034.
+

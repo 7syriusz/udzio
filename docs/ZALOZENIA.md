@@ -479,3 +479,20 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   operacje domenowe używają `authorize`, które zapisuje decyzję.
 - Poprawka: decydent czyta aktualny stan jednostki z bazy (nie z przekazanego obiektu).
 
+## Z-034 — Izolacja danych (E3.7, 2026-09-27)
+
+- A5-01 i A5 §1.1: tożsamość PERSON jest globalna, ale **nie daje globalnej widoczności**. `DataVisibility`
+  ogranicza listy i odczyty do jednostek, w których konto ma dane uprawnienie. Zbiór jednostek liczy
+  `AccessDecider::grantedOrganizationIds` według tych samych reguł co pojedyncza decyzja E3.6 (test zgodności).
+- **Organizacje:** widoczne tylko jednostki z `organization.view` (zgodnie z zakresem i dziedziczeniem).
+- **Członkostwa:** widoczne tylko okresy (bieżące i przeszłe) w jednostkach z `members.view`. Członkostwo tej
+  samej osoby w obcej organizacji (np. funkcja) pozostaje niewidoczne.
+- **F — kogo widzi konto:** własną PERSON; osoby, które reprezentuje z zakresem `profile.view`; osoby mające
+  (teraz lub w przeszłości) członkostwo w jednostce z `members.view`. Historyczne członkostwo pozostawiono,
+  aby dało się czytać historię jednostki — do przeglądu, gdyby miało wygasać po czasie (retencja Z-017).
+- Reprezentacja nie daje wglądu w dane organizacji; rola dostępowa nie daje wglądu w cudze reprezentacje.
+- **Odczyt spoza zakresu:** odpowiedź 404 (bez ujawniania istnienia) i odmowa w audycie z uzasadnieniem
+  `not_visible` — zapisana raz, także przy wywołaniu z HTTP. Zarchiwizowana jednostka wypada z widoczności.
+- Kolejne moduły (wydarzenia, zapisy, finanse…) filtrują swoje zapytania przez `grantedOrganizationIds` z własnym
+  uprawnieniem, zamiast własnej logiki zakresu.
+

@@ -131,7 +131,151 @@ Razem E4: ok. 15–16 h pracy w 9 podetapach. Poza zakresem E4: ACTIVITY jako fa
 
 Założenia do zapisania w trakcie (zasada 3, bez zatrzymywania pracy): domyślna polityka dziedziczenia uprawnień (brak dziedziczenia), sposób utworzenia pierwszego administratora, reguła czasu podwydarzeń, strefa czasowa wydarzenia.
 
-Etapy E5–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nich.
+## E5 — Zgłoszenia, uczestnictwo, limity i kolejka (A5 §3.3, §4; A5-07; LIMIT/CAPACITY, QUEUE/WAITLIST, RECURRENCE)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E5.1 | Konfiguracja zapisów EVENT jako definicja wersjonowana (okno zapisów, kto może zgłaszać, kogo) | Zgłoszenie wskazuje wersję konfiguracji (A5-11) | Wersje, okno czasowe, zmiana nie zmienia starych zgłoszeń | 90 min |
+| E5.2 | REGISTRATION: zgłoszenie jednej lub wielu osób; zgłaszający (ACTOR) ≠ zgłaszani (SUBJECT, przez reprezentację); statusy, anulowanie, odrzucenie z powodem | Zgłoszenie nie przesądza udziału (A5 §4) | Statusy, reprezentacja, odmowy, idempotencja | 120 min |
+| E5.3 | Zgłoszenie osoby bez konta (PERSON + kontakt, bez fikcyjnego konta), późniejsze dołączenie konta (E2.4) | Prosty zapis bez konta (A5 §1.2) | Zgłoszenie gościa, brak duplikatu po późniejszej rejestracji | 120 min |
+| E5.4 | PARTICIPATION: relacja uczestnictwa w czasie; z akceptacji zgłoszenia albo bez zgłoszenia | REGISTRATION i PARTICIPATION odrębne (A5-07) | Uczestnictwo bez zgłoszenia, zgłoszenie bez uczestnictwa | 90 min |
+| E5.5 | LIMIT/CAPACITY: limity miejsc na EVENT i poddrzewie, liczenie z faktów | Nie da się przekroczyć limitu | Test współbieżny ostatniego miejsca, limit poddrzewa | 120 min |
+| E5.6 | QUEUE/WAITLIST: lista rezerwowa, kolejność i awans po zwolnieniu miejsca | Kolejka sprawiedliwa i odtwarzalna | Test współbieżny awansu, anulowanie w kolejce | 120 min |
+| E5.7 | Akceptacja zgłoszeń ręczna lub automatyczna (konfiguracja), potwierdzenie e-mail | Organizator decyduje albo reguła | Obie ścieżki, uprawnienia, powiadomienie | 90 min |
+| E5.8 | RECURRENCE: terminy cykliczne jako podwydarzenia z reguły powtarzania; zmiana reguły nie rusza przeszłych terminów | Cykle bez ręcznego tworzenia terminów | Generowanie, zmiana reguły, wyjątki dat | 120 min |
+| E5.9 | Ekrany uczestnika: zapis siebie i reprezentowanych, moje zgłoszenia, anulowanie | Uczestnik zarządza zgłoszeniami | Testy HTTP i odmów | 120 min |
+| E5.10 | Ekrany organizatora: zgłoszenia, akceptacja, lista rezerwowa, lista uczestników | Organizator obsługuje zapisy | Testy HTTP i odmów, izolacja | 120 min |
+| E5.11 | Zamknięcie E5: scenariusz A5-07, dokumentacja, tag `e5-zamkniety` | Zapisy gotowe pod prawa i obecność (E6) | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E5: ok. 19 h w 11 podetapach.
+
+## E6 — Prawa, użycia, identyfikatory i obecność (A5 §4, §5, §3.2; A5-08)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E6.1 | ENTITLEMENT: prawo beneficjenta (ilościowe, zakres EVENT, okres), wydanie z uczestnictwa lub ręcznie; odrębne od PERMISSION | Prawo do świadczenia jako fakt | Ilość, zakres, okres, beneficjent ≠ nabywca | 120 min |
+| E6.2 | USAGE: częściowe wykorzystanie, pozostała ilość odtwarzana z faktów, cofnięcie użycia jako korekta | Niewykorzystana część odtwarzalna (A5-08) | Test współbieżny podwójnego użycia, cofnięcie | 120 min |
+| E6.3 | IDENTIFIER: nieprzewidywalny identyfikator prawa/relacji, unieważnienie, wymiana, wiele reprezentacji | Identyfikator ≠ prawo | Unieważnienie, wymiana, brak zgadywania | 90 min |
+| E6.4 | QR jako reprezentacja identyfikatora (SVG), bez logiki biznesowej w kodzie | QR do pokazania i wydruku | Generowanie, odczyt, unieważniony kod | 90 min |
+| E6.5 | Skan: operacja skanu wg konfiguracji, idempotencja, nierozpoznany kod → anonimowy licznik bez fikcyjnej PERSON | Bramka działa bezpiecznie (A5 §4) | Powtórzony skan, zły kod, rodzaj operacji | 120 min |
+| E6.6 | ATTENDANCE: obecność rozpoznanej osoby w zakresie EVENT, ręczne potwierdzenie; USAGE ≠ ATTENDANCE | Obecność jako osobny fakt (A5-08) | Użycie bez obecności, obecność bez użycia | 90 min |
+| E6.7 | ACTIVITY: fakt wykonanej aktywności jako zdarzenie dla raportów i reguł | ACTIVITY ≠ EVENT (A5 §3.2) | Zapis faktów, powiązanie z kontekstem | 90 min |
+| E6.8 | Skany z urządzenia bez sieci: kolejka skanów, synchronizacja, deduplikacja | Bramka odporna na brak sieci | Duplikaty po synchronizacji, kolejność | 120 min |
+| E6.9 | Ekrany uczestnika: moje prawa i kody QR | Uczestnik ma dostęp do kodów | Testy HTTP i odmów | 90 min |
+| E6.10 | Ekran skanera operatora (telefon, kamera) | Obsługa wejścia na wydarzenie | Testy HTTP, uprawnienie skanowania | 120 min |
+| E6.11 | Ekrany obecności i zestawienie użyć | Organizator widzi frekwencję | Testy HTTP i izolacji | 90 min |
+| E6.12 | Zamknięcie E6: scenariusz A5-08, dokumentacja, tag `e6-zamkniety` | Prawa i obecność gotowe | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E6: ok. 20 h w 12 podetapach.
+
+## E7 — Zasoby, plany, rezerwacje i przydziały (A5 §6; A5-09)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E7.1 | RESOURCE: zasób hierarchiczny, jednostkowy i ilościowy (pula) | Sala, miejsce, sprzęt, pula bez typów branżowych | Hierarchia, rodzaje, izolacja | 120 min |
+| E7.2 | LAYOUT: plan wersjonowany; położenie zasobu na wersji planu | Zasób odrębny od położenia (A5 §6) | Wersje planu, zmiana nie rusza przydziałów | 120 min |
+| E7.3 | Dostępność zasobu w czasie: kalendarz i blokady | Wiadomo, kiedy zasób jest wolny | Nakładanie, strefy czasu | 90 min |
+| E7.4 | RESERVATION pojedynczego zasobu: czasowa blokada, wygaśnięcie | Brak podwójnej rezerwacji | Test współbieżny, wygaśnięcie | 120 min |
+| E7.5 | RESERVATION zestawu zasobów atomowo, jedna polityka konfliktu | Konflikt składnika = decyzja dla całości (A5-09) | Test współbieżny zestawu, częściowy konflikt | 120 min |
+| E7.6 | Rezerwacja części puli ilościowej | Pule bez przekroczeń | Test współbieżny puli | 90 min |
+| E7.7 | ASSIGNMENT: przydział zasobu, osoby lub roli do kontekstu; przydział przetrwa zmianę konfiguracji | Przydzielone miejsce nie znika (A5 §6) | Przydział, zmiana planu, historia | 90 min |
+| E7.8 | Ekrany zasobów i podglądu planu | Organizator zarządza zasobami | Testy HTTP i odmów | 120 min |
+| E7.9 | Ekrany rezerwacji i przydziałów | Obsługa rezerwacji w interfejsie | Testy HTTP i odmów | 120 min |
+| E7.10 | Zamknięcie E7: scenariusz A5-09, dokumentacja, tag `e7-zamkniety` | Zasoby gotowe | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E7: ok. 17 h w 10 podetapach.
+
+## E8 — Oferta, zamówienia, należności i płatności (A5 §7, §8; A5-10, A5-16)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E8.1 | OFFERING: pozycja katalogu z warunkami dostępności | Katalog ≠ zamówienie | Warunki, izolacja | 90 min |
+| E8.2 | PRICING POLICY: naliczenie ceny z podstawą i wersją reguły | Cena odtwarzalna po zmianie reguły (A5-16) | Wersje reguł, kwoty całkowite | 120 min |
+| E8.3 | ORDER / ORDER ITEM z niezależnymi rolami BUYER, PAYER, PARTICIPANT, BENEFICIARY; idempotencja | Role ekonomiczne niezależne (A5-10) | Te same i różne osoby w rolach, ponowienie | 120 min |
+| E8.4 | OBLIGATION: należność z terminem, częściowe wykonanie | Należność ≠ płatność | Terminy, częściowe wykonanie | 90 min |
+| E8.5 | PAYMENT: rejestracja wpłaty (przelew, gotówka) niezależnie od należności | Wpłata jako fakt | Rejestracja, powód, audyt | 90 min |
+| E8.6 | ALLOCATION: rozliczenie wpłaty na jedną lub wiele należności, saldo | Wiadomo, co zapłacono | Test współbieżny rozliczeń, nadpłata | 120 min |
+| E8.7 | LEDGER: niezmienny dziennik zdarzeń wartości, odtwarzanie salda | Saldo z historii (A5 §8) | Odtworzenie salda, niezmienność | 120 min |
+| E8.8 | ADJUSTMENT i REFUND jako odrębne operacje z powodem i historią | Korekta ≠ zwrot | Obie operacje, wpływ na saldo | 120 min |
+| E8.9 | Operator płatności online: kontrakt dostawcy, webhook idempotentny (piaskownica) | Płatność online bez zależności od jednego dostawcy | Podwójny webhook, podpis, błąd dostawcy | 120 min |
+| E8.10 | Powiązanie z E5/E6: opłacenie → zgłoszenie/ENTITLEMENT wg reguły | Płatność uruchamia skutki | Reguła, zwrot cofa skutek | 120 min |
+| E8.11 | Ekrany uczestnika: zamówienie i płatność | Uczestnik płaci | Testy HTTP i odmów | 120 min |
+| E8.12 | Ekrany finansów organizatora: należności, wpłaty, rozliczenia, korekty | Organizator rozlicza | Testy HTTP i odmów, izolacja | 120 min |
+| E8.13 | Zamknięcie E8: scenariusz A5-10, dokumentacja, tag `e8-zamkniety` | Finanse gotowe | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E8: ok. 23 h w 13 podetapach. Poza zakresem: OFFER z kontrofertą, VALUE/POINTS i UDZ.io (katalog E5 A5 §15).
+
+## E9 — Formularze, dokumenty, zgody, sprawy (A5 §9, §10; A5-11)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E9.1 | FORM: definicja pól typowanych z walidacją i klasą danych każdego pola, wersjonowana | Formularz jako konfiguracja | Typy, walidacje, wersje | 120 min |
+| E9.2 | FORM RESPONSE: odpowiedź wskazuje wersję, walidacja wg wersji | Odpowiedź odtwarzalna (A5-11) | Zmiana formularza nie psuje starych odpowiedzi | 120 min |
+| E9.3 | Formularze w zgłoszeniu (E5), także za osobę reprezentowaną | Dane zbierane przy zapisie | Wypełnianie w imieniu, klasyfikacja | 90 min |
+| E9.4 | DOCUMENT: treść wersjonowana (regulamin, polityka), publikacja | Dokument z historią wersji | Wersje, publikacja | 90 min |
+| E9.5 | CONSENT: akt zgody wobec wersji dokumentu, wycofanie bez usuwania faktów, zgoda w imieniu | Zgoda odrębna od dokumentu (A5 §9) | Wycofanie, reprezentacja `consents.manage` | 120 min |
+| E9.6 | Wymagane zgody jako warunek operacji (np. zapisu) | Brak zgody blokuje operację | Warunek, nowa wersja dokumentu | 90 min |
+| E9.7 | CASE i TASK (lekko): sprawa i zadanie z odpowiedzialnym, terminem, statusem, historią | Obsługa problemów i czynności | Statusy, odpowiedzialny, historia | 120 min |
+| E9.8 | Ekran kreatora formularzy (organizator) | Organizator buduje formularze | Testy HTTP i odmów | 120 min |
+| E9.9 | Ekrany wypełniania formularzy i moich zgód | Uczestnik wypełnia i zarządza zgodami | Testy HTTP i odmów | 120 min |
+| E9.10 | Zamknięcie E9: dokumentacja, tag `e9-zamkniety` | Formularze i zgody gotowe | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E9: ok. 18 h w 10 podetapach.
+
+## E10 — Komunikacja, automatyzacje, raporty i eksport (A5 §13, §14)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E10.1 | COMMUNICATION: szablon wersjonowany, wiadomość, odbiorca, kanał, status, historia | Wysłana wiadomość jako fakt | Szablon ≠ wiadomość, historia | 120 min |
+| E10.2 | Wysyłka e-mail przez kolejkę: statusy doręczenia, ponowienia, idempotencja | Niezawodna wysyłka | Ponowienie, brak duplikatów | 120 min |
+| E10.3 | Odbiorcy wg kontekstu (uczestnicy, członkowie), zgody i kontakt reprezentanta | Wiadomość trafia do właściwych osób | Zgody, reprezentacja, izolacja | 120 min |
+| E10.4 | SMS: podłączenie wybranego operatora do kontraktu Z-020, weryfikacja telefonu | Telefon weryfikowalny | Kontrakt, błędy operatora | 90 min |
+| E10.5 | Automatyzacja TRIGGER → CONDITION → ACTION (np. potwierdzenie zapisu), idempotencja | Reguły zamiast logiki w ekranach (A5 §13) | Wyzwolenie, warunek, powtórzenie | 120 min |
+| E10.6 | REPORT DEFINITION: zestawienie liczone z Core, snapshot tylko gdy wymagany | Raport odtwarzalny (A5 §14) | Wynik, snapshot, uprawnienia | 120 min |
+| E10.7 | Eksport danych (CSV/XLSX) z polityką klas danych i audytem | Eksport zgodny z Z-017 | Redakcja, pominięcie SECRET, audyt | 90 min |
+| E10.8 | Ekrany komunikacji: tworzenie, podgląd, historia | Organizator komunikuje się | Testy HTTP i odmów | 120 min |
+| E10.9 | Ekrany raportów i eksportu | Organizator raportuje | Testy HTTP i odmów | 120 min |
+| E10.10 | Zamknięcie E10: dokumentacja, tag `e10-zamkniety` | Komunikacja i raporty gotowe | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E10: ok. 18 h w 10 podetapach. Pełny silnik RULE/WORKFLOW — poza zakresem A5 (§13, §15).
+
+## E11 — CLONE, MERGE, eksport i import konfiguracji (A5 §11, §14; A5-12, A5-13)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E11.1 | CLONE konfiguracji wydarzenia w jawnym zakresie, bez danych wykonania | Kopia bez uczestników i płatności (A5-12) | Zakres, brak danych wykonania | 120 min |
+| E11.2 | CLONE poddrzewa wydarzeń z definicjami (formularze, oferty, zasoby) i mapowaniem identyfikatorów | Kopiowanie całych cykli | Mapowanie, spójność, wersje | 120 min |
+| E11.3 | MERGE PERSON: scalenie duplikatów z pochodzeniem, przeniesienie relacji, konflikt dwóch kont | Scalenie bez utraty pochodzenia (A5-13) | Relacje, historia, konflikty | 120 min |
+| E11.4 | Cofnięcie błędnego MERGE z historii | Kontrolowana korekta decyzji (A5-13) | Cofnięcie, zmiany po scaleniu | 120 min |
+| E11.5 | MERGE ORGANIZATION i innych kartotek wg tego samego wzorca | Wzorzec MERGE ogólny | Scalenie, cofnięcie | 90 min |
+| E11.6 | Eksport pełnej konfiguracji z `schema_version` | Konfiguracja przenośna (A5 §14) | Kompletność, wersja schematu | 90 min |
+| E11.7 | Eksport pakietu zmian (delta) | Przenoszenie zmian | Delta, kolejność | 120 min |
+| E11.8 | Import z walidacją i migracją wersji, bez danych operacyjnych, idempotentny | Bezpieczny import | Zła wersja, powtórny import | 120 min |
+| E11.9 | Ekrany: klonowanie, scalanie (operator), import i eksport | Operacje dostępne w interfejsie | Testy HTTP i odmów | 120 min |
+| E11.10 | Zamknięcie E11: scenariusz A5-12/13, tag `e11-zamkniety` | Funkcje platformy kompletne | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E11: ok. 18 h w 10 podetapach.
+
+## E12 — Utwardzenie i wdrożenie produkcyjne (A5 §12)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E12.1 | Retencja i anonimizacja wg Z-017 (harmonogram), obsługa żądania usunięcia danych | Dane nie żyją dłużej niż trzeba | Anonimizacja, zachowanie historii rozliczeń | 120 min |
+| E12.2 | Szyfrowanie danych SPECIAL CATEGORY i SECRET w spoczynku, rotacja klucza | Ochrona danych wrażliwych | Szyfrowanie, rotacja, odczyt | 120 min |
+| E12.3 | Uprawnienia bazy: konto aplikacji bez DDL, osobne konto migracji (Z-012) | Aplikacja nie zmieni schematu ani wyzwalaczy | Próba DDL z konta aplikacji odrzucona | 90 min |
+| E12.4 | Nagłówki bezpieczeństwa, CSP, limity żądań, przegląd ciasteczek i sesji | Twardsza warstwa HTTP | Testy nagłówków i limitów | 90 min |
+| E12.5 | Przegląd bezpieczeństwa (OWASP), przekrojowe testy negatywne, skan zależności | Znane klasy błędów zamknięte | Raport i poprawki | 120 min |
+| E12.6 | Wydajność: indeksy, zapytania N+1, test obciążenia zapisu i skanu | Krytyczne ścieżki szybkie | Pomiary przed/po | 120 min |
+| E12.7 | Monitoring, logi, zdrowie kolejek, alerty | Awarie widoczne | Symulacja awarii | 90 min |
+| E12.8 | Kopie zapasowe i test odtworzenia | Dane odtwarzalne | Odtworzenie na czystym serwerze | 90 min |
+| E12.9 | Serwer VPS OVH: przygotowanie, Docker Compose produkcyjny, HTTPS (certbot), domena | Serwer gotowy | Test dymny na serwerze | 120 min |
+| E12.10 | Wdrożenie: pipeline wdrożeniowy, migracje, wycofanie wersji, próbne wdrożenie | Powtarzalne wdrożenia | Wdrożenie i wycofanie | 120 min |
+| E12.11 | Dostępność (WCAG) i dopracowanie kluczowych ekranów | Aplikacja przyjazna | Przegląd dostępności | 120 min |
+| E12.12 | Zamknięcie projektu: kryteria A5, dokumentacja operacyjna, tag `e12-zamkniety` | Produkcja | Pełny zestaw, test na produkcji | 60 min |
+
+Razem E12: ok. 21 h w 12 podetapach.
+
+**Łącznie E3–E12:** 109 podetapów, ok. 190–200 h pracy (przy tempie z E1–E2 kilka sesji dziennie, kilka tygodni). Czasy są orientacyjne; każdy podetap mieści się w 120 min zgodnie z zasadami budżetu powyżej.
 
 ## Postęp wykonania
 
@@ -183,3 +327,4 @@ Etapy E5–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nic
 - E3.1 (2026-09-27, zlecone po zamknięciu E2): `Organization`, publiczny ULID, nazwa, status aktywna/zarchiwizowana; tworzenie, zmiana nazwy z powodem i archiwizacja z audytem. Blokada usunięcia w modelu i MySQL, atomowość zmian z audytem, blokada aktualnego rekordu przy zmianach. 13 nowych przypadków / 61 asercji. Pełna regresja: **203 testy / 746 asercji**, MySQL. Założenia: Z-028, ARCHITEKTURA §16. Punkt wejścia: `d9b0109`, gałąź `e3/01-organizacja`. Scalenie wymaga zielonego CI. Następny podetap: E3.2.
 - E3.1 scalony do `main`: `a7546a3`; CI gałęzi `36308777078` i main `36308969872` — sukces.
 - E3.2 (2026-09-27): `OrganizationParent` jako relacja w czasie E1.5, przeniesienie i odłączenie z powodem i historią, odczyt przodków/potomków na moment bez limitu głębokości. Kontrola cykli obejmuje równoległe przeniesienia (test dwóch procesów MySQL). Naprawiono obcinanie mikrosekund przy bindowaniu granic czasu we wspólnym `HasValidityPeriod`; przypadek jednej mikrosekundy zabezpiecza regresję. 10 nowych przypadków / 39 asercji. Pełny zestaw: **213 testów / 785 asercji**. Z-029, ARCHITEKTURA §17. Gałąź `e3/02-struktura`, punkt wejścia `a7546a3`. Scalenie po zielonym CI. Następny: E3.3.
+- 2026-09-27: rozpisano E5–E12 na podetapy (88 podetapów) wg tych samych zasad budżetu pracy AI.

@@ -140,4 +140,29 @@ class HasValidityPeriodTest extends TestCase
         $this->assertSame('ORG-1', $entry->organization_id);
         $this->assertSame(['valid_to' => null], $entry->before_values);
     }
+
+    public function test_a_scheduled_end_can_only_be_brought_forward_and_never_into_the_past(): void
+    {
+        $this->travelTo($this->at('2026-01-10'));
+        $member = ValidityProbe::startPeriod([...self::KEY, 'function' => 'member'], $this->at('2026-01-01'));
+        $this->because('fixed term', fn () => $member->end($this->at('2026-12-31')));
+
+        $this->because('ended early', fn () => $member->shortenScheduledEnd($this->at('2026-06-30')));
+        $this->assertTrue($member->fresh()->valid_to->equalTo($this->at('2026-06-30')));
+
+        foreach ([
+            fn () => $member->fresh()->shortenScheduledEnd($this->at('2026-01-05')),
+            fn () => $member->fresh()->forceFill(['valid_to' => $this->at('2027-01-01')])->save(),
+        ] as $attempt) {
+            try {
+                $this->because('rewrite attempt', $attempt);
+                $this->fail('Only a future end moved earlier, not before now, is allowed.');
+            } catch (LogicException) {
+            }
+        }
+
+        $this->travelTo($this->at('2026-07-01'));
+        $this->expectException(ValidityConflict::class);
+        $this->because('too late', fn () => $member->fresh()->shortenScheduledEnd($this->at('2026-07-01')));
+    }
 }

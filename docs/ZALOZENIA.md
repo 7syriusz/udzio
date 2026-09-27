@@ -431,3 +431,21 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - Poprawka przy okazji: ochrony „rekord zamknięty” w `AccessRole` i `PersonLinkReview` (E2.10) porównują
   oryginalny status jako enum (wcześniej tekst — ochrona w modelu nie działała; akcje ją zastępowały).
 
+## Z-032 — Przypisanie roli w zakresie (E3.5, 2026-09-27)
+
+- A5 §2.4: przypisanie `role_assignments` = ACCOUNT → ACCESS ROLE w SCOPE (jednostka organizacji), jako
+  relacja w czasie (E1.5): okres, status, historia. Klucz: konto + rola + jednostka zakresu.
+- **Jawna polityka dziedziczenia** (`scope_inheritance`, wymagana przy każdym nadaniu, bez wartości domyślnej):
+  `unit_only` — tylko wskazana jednostka; `unit_and_descendants` — jednostka i jednostki pod nią **według
+  struktury obowiązującej w chwili sprawdzenia** (przeniesiona jednostka wypada z zakresu, historia zostaje).
+  Nigdy nie ma dziedziczenia w górę ani do obcej organizacji.
+- **F — gdzie można nadać rolę:** tylko w organizacji, która zdefiniowała rolę, albo w jednostkach pod nią.
+  Rola musi być aktywna, jednostka zakresu — aktywna.
+- **F — wygaśnięcie:** nadanie może mieć termin (musi być w przyszłości); po nim przypisanie jest nieaktywne.
+  Odwołanie kończy przypisanie „teraz”, także takie, które miało wygasnąć później. Każda zmiana z powodem.
+- Rozszerzenie wzorca E1.5: `shortenScheduledEnd` — koniec okresu zaplanowany w przyszłości można tylko
+  przyspieszyć, nie wcześniej niż „teraz”; to, co już się wydarzyło, pozostaje nienaruszone.
+- Samo przypisanie nie jest decyzją o dostępie: sprawdzenie uprawnienie ∧ SCOPE ∧ aktywne przypisanie ∧
+  aktywna rola powstaje w E3.6. Kto może nadawać role (`roles.assign`) — przez przepływ wywołujący (E3.6+).
+  Historia nieusuwalna (model i wyzwalacz MySQL). Brak tras HTTP i ekranów (E3.11).
+

@@ -5,6 +5,7 @@ namespace App\Domain\Organization\Access;
 use App\Domain\Organization\Enums\AccessRoleStatus;
 use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Enums\ScopeInheritance;
+use App\Domain\Organization\Models\AccessRole;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\OrganizationParent;
 use App\Domain\Organization\Models\RoleAssignment;
@@ -13,6 +14,8 @@ use App\Domain\Platform\Actions\RecordAudit;
 use App\Domain\Platform\ActorContext;
 use App\Domain\Platform\Enums\ActorType;
 use App\Domain\Platform\Exceptions\AccessDenied;
+use App\Domain\Platform\Models\DefinitionVersion;
+use App\Domain\Platform\OperationCorrelation;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
@@ -34,6 +37,7 @@ final class AccessDecider
         private readonly SystemAuthority $system,
         private readonly RecordAudit $audit,
         private readonly RecordAccessDenial $denials,
+        private readonly OperationCorrelation $correlation,
     ) {}
 
     public function decide(?User $account, Permission $permission, Organization $target, ?DateTimeInterface $at = null): AccessDecision
@@ -83,42 +87,187 @@ final class AccessDecider
     }
 
     /**
-     * `authorize()` plus the delegation rules for role management: an account cannot put into a role or
-     * hand to someone permissions it does not hold itself in that scope, and cannot give a role to itself.
-     * The final outcome is decided first and recorded once.
+     * Decision on assigning, approving or revoking `$role` in `$scope` by `$account` (E3.6a). Allowed when an
+     * active assignment of the account holds `roles.assign`, covers `$scope` (its own inheritance policy) and
+     * its role version lists `$role` in the role-granting catalog with a rule that allows this unit and
+     * duration. Kept rules: no self-assignment, no approval of one's own request, and no handing out more
+     * role-granting power than one has (indirect self-escalation). Operational permissions of the granted
+     * role do not have to be held by the granting account.
      *
-     * @param  list<string>  $delegated  permissions that the operation would grant
+     * @param  'assign'|'approve'|'revoke'  $operation
      */
-    public function authorizeDelegation(Permission $permission, Organization $target, array $delegated, ?int $granteeAccountId, string $subjectType, ?string $subjectId = null): AccessDecision
+    public function decideRoleGrant(?User $account, string $operation, AccessRole $role, Organization $scope, ?DateTimeInterface $until = null, ?int $granteeAccountId = null, ?string $requestedByAccountId = null, ?DateTimeInterface $at = null): AccessDecision
     {
-        $decision = $this->decideForActor($permission, $target);
-        if ($decision->allowed && $decision->reason !== AccessDecision::REASON_SYSTEM_AUTHORITY) {
-            $account = User::query()->findOrFail($this->context->current()->identifier);
-            $missing = array_values(array_diff($delegated, $this->permissionsHeld($account, $target)));
-            $selfGrant = $granteeAccountId !== null && $granteeAccountId === $account->getKey();
-            if ($missing !== [] || $selfGrant) {
-                $reason = $selfGrant ? 'self_assignment' : 'delegation_exceeds_own_permissions';
-                $decision = new AccessDecision(false, $reason, [...$decision->basis, 'decision' => 'denied', 'reason' => $reason, 'missing' => $missing]);
+        $at = CarbonImmutable::instance($at ?? CarbonImmutable::now('UTC'))->utc();
+        $until = $until === null ? null : CarbonImmutable::instance($until)->utc();
+        $basis = [
+            'permission' => Permission::RolesAssign->value,
+            'operation' => $operation,
+            'at' => $at->format('Y-m-d H:i:s.u'),
+            'account_id' => $account?->getKey(),
+            'target_organization' => $scope->public_id,
+            'granted_role' => $role->public_id,
+            'grantee_account_id' => $granteeAccountId,
+            'until' => $until?->format('Y-m-d H:i:s.u'),
+        ];
+        if ($account === null) {
+            return $this->deny(AccessDecision::REASON_NO_ACCOUNT, $basis);
+        }
+        $scope = Organization::query()->findOrFail($scope->getKey());
+        if (! $scope->isActiveAt($at)) {
+            return $this->deny(AccessDecision::REASON_TARGET_INACTIVE, $basis);
+        }
+        if ($operation !== 'revoke' && $granteeAccountId === $account->getKey()) {
+            return $this->deny('self_assignment', $basis);
+        }
+        if ($operation === 'approve' && $requestedByAccountId === (string) $account->getKey()) {
+            return $this->deny('approval_by_requester', $basis);
+        }
+
+        $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($at)
+            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get();
+        if ($assignments->isEmpty()) {
+            return $this->deny(AccessDecision::REASON_NO_ACTIVE_ASSIGNMENT, $basis);
+        }
+
+        $considered = [];
+        $match = null;
+        $catalog = [];
+        foreach ($assignments as $assignment) {
+            [$outcome, $version] = $this->assignmentOutcome($assignment, Permission::RolesAssign, $at);
+            if ($outcome === 'applicable') {
+                $path = $this->structurePath($scope, $assignment->scopeOrganization, $at);
+                $outcome = $path === null || ($path !== [] && $assignment->scope_inheritance !== ScopeInheritance::UnitAndDescendants)
+                    ? 'scope_not_covering' : 'covering';
+            }
+            if ($outcome !== 'covering') {
+                $considered[] = ['assignment' => $assignment->public_id, 'outcome' => $outcome];
+
+                continue;
+            }
+            $rules = collect($version->content['grant_rules'] ?? [])->keyBy('role');
+            $catalog = [...$catalog, ...$rules->filter(fn (array $rule) => $path === [] || $rule['include_descendants'])->keys()->all()];
+            $rule = $rules->get($role->public_id);
+            $outcome = match (true) {
+                $rule === null => 'role_not_in_catalog',
+                $path !== [] && ! $rule['include_descendants'] => 'scope_not_covering',
+                $operation === 'assign' && $rule['max_days'] !== null && $until === null => 'duration_required',
+                $operation === 'assign' && $rule['max_days'] !== null && $until->greaterThan($at->addDays($rule['max_days'])) => 'duration_exceeds_limit',
+                default => 'match',
+            };
+            $considered[] = ['assignment' => $assignment->public_id, 'outcome' => $outcome];
+            if ($outcome === 'match' && $match === null) {
+                $match = [
+                    'assignment' => $assignment->public_id,
+                    'role' => $assignment->role->public_id,
+                    'role_version' => $version->version,
+                    'scope_organization' => $assignment->scopeOrganization->public_id,
+                    'scope_inheritance' => $assignment->scope_inheritance->value,
+                    'structure_path' => $path,
+                    'grant_rule' => $rule,
+                    'requires_approval' => $operation === 'assign' && $rule['requires_approval'],
+                ];
+            }
+        }
+        if ($match === null) {
+            return $this->deny(AccessDecision::REASON_NO_MATCHING_ASSIGNMENT, [...$basis, 'considered' => $considered]);
+        }
+
+        if ($operation !== 'revoke') {
+            $escalation = $this->grantingPowerBeyondOwn($role, $account, $scope, array_values(array_unique($catalog)), $at);
+            if ($escalation !== []) {
+                return $this->deny('delegation_power_exceeds_own', [...$basis, 'exceeding' => $escalation]);
             }
         }
 
-        return $this->record($decision, $permission, $target, $subjectType, $subjectId);
+        return new AccessDecision(true, AccessDecision::REASON_ASSIGNMENT, [...$basis, ...$match, 'decision' => 'allowed', 'reason' => AccessDecision::REASON_ASSIGNMENT]);
+    }
+
+    /**
+     * Records and enforces decideRoleGrant for the current ACTOR (SystemAuthority for a technical process).
+     *
+     * @param  'assign'|'approve'|'revoke'  $operation
+     */
+    public function authorizeRoleGrant(string $operation, AccessRole $role, Organization $scope, ?DateTimeInterface $until, ?int $granteeAccountId, ?string $requestedByAccountId = null, ?string $subjectId = null): AccessDecision
+    {
+        $systemDecision = $this->systemDecision(Permission::RolesAssign, $scope);
+        if ($systemDecision !== null) {
+            return $this->record($systemDecision, Permission::RolesAssign, $scope, 'role_assignment', $subjectId);
+        }
+        $actor = $this->context->current();
+        $account = $actor->type === ActorType::Account ? User::query()->find($actor->identifier) : null;
+
+        return $this->record(
+            $this->decideRoleGrant($account, $operation, $role, $scope, $until, $granteeAccountId, $requestedByAccountId),
+            Permission::RolesAssign, $scope, 'role_assignment', $subjectId,
+        );
+    }
+
+    /**
+     * Defining or changing roles (`roles.manage`). An account cannot change a role it holds itself —
+     * that would raise its own permissions indirectly.
+     */
+    public function authorizeRoleDefinition(Organization $organization, ?AccessRole $existing = null): AccessDecision
+    {
+        $decision = $this->decideForActor(Permission::RolesManage, $organization);
+        $actor = $this->context->current();
+        if ($decision->allowed && $existing !== null && $actor->type === ActorType::Account
+            && RoleAssignment::query()->where('user_id', $actor->identifier)->where('access_role_id', $existing->id)->activeAt(CarbonImmutable::now('UTC'))->exists()) {
+            $decision = new AccessDecision(false, 'modifies_own_role', [...$decision->basis, 'decision' => 'denied', 'reason' => 'modifies_own_role', 'role' => $existing->public_id]);
+        }
+
+        return $this->record($decision, Permission::RolesManage, $organization, 'access_role', $existing?->public_id);
+    }
+
+    /**
+     * Role-granting power the granted role would carry beyond the granting account's own: role-management
+     * permissions it does not hold here, or catalog entries outside its own catalog for this unit.
+     *
+     * @param  list<string>  $ownCatalog
+     * @return list<string>
+     */
+    private function grantingPowerBeyondOwn(AccessRole $role, User $account, Organization $scope, array $ownCatalog, CarbonImmutable $at): array
+    {
+        $version = $role->versionAt($at);
+        $exceeding = [];
+        foreach ([Permission::RolesAssign, Permission::RolesManage] as $power) {
+            if (in_array($power->value, $version->content['permissions'], true) && $this->decide($account, $power, $scope, $at)->denied()) {
+                $exceeding[] = $power->value;
+            }
+        }
+        foreach ($version->content['grant_rules'] ?? [] as $rule) {
+            if (! in_array($rule['role'], $ownCatalog, true)) {
+                $exceeding[] = 'catalog:'.$rule['role'];
+            }
+        }
+
+        return $exceeding;
+    }
+
+    private function systemDecision(Permission $permission, Organization $target): ?AccessDecision
+    {
+        $systemReason = $this->system->activeReason();
+        if ($this->context->current()->type === ActorType::Account || $systemReason === null) {
+            return null;
+        }
+
+        return new AccessDecision(true, AccessDecision::REASON_SYSTEM_AUTHORITY, [
+            'permission' => $permission->value,
+            'at' => CarbonImmutable::now('UTC')->format('Y-m-d H:i:s.u'),
+            'target_organization' => $target->public_id,
+            'decision' => 'allowed',
+            'reason' => AccessDecision::REASON_SYSTEM_AUTHORITY,
+            'system_reason' => $systemReason,
+        ]);
     }
 
     private function decideForActor(Permission $permission, Organization $target): AccessDecision
     {
-        $actor = $this->context->current();
-        $systemReason = $this->system->activeReason();
-        if ($actor->type !== ActorType::Account && $systemReason !== null) {
-            return new AccessDecision(true, AccessDecision::REASON_SYSTEM_AUTHORITY, [
-                'permission' => $permission->value,
-                'at' => CarbonImmutable::now('UTC')->format('Y-m-d H:i:s.u'),
-                'target_organization' => $target->public_id,
-                'decision' => 'allowed',
-                'reason' => AccessDecision::REASON_SYSTEM_AUTHORITY,
-                'system_reason' => $systemReason,
-            ]);
+        $systemDecision = $this->systemDecision($permission, $target);
+        if ($systemDecision !== null) {
+            return $systemDecision;
         }
+        $actor = $this->context->current();
         $account = $actor->type === ActorType::Account ? User::query()->find($actor->identifier) : null;
 
         return $this->decide($account, $permission, $target);
@@ -127,32 +276,25 @@ final class AccessDecider
     private function record(AccessDecision $decision, Permission $permission, Organization $target, string $subjectType, ?string $subjectId): AccessDecision
     {
         $subjectId ??= $target->public_id;
+        // One final decision entry per protected operation, however many checks it performs.
+        $firstTime = $this->correlation->firstTime(implode('|', [$decision->allowed ? 'granted' : 'denied', $permission->value, $target->public_id, $subjectType, $subjectId]));
         if ($decision->allowed) {
-            $this->audit->handle('access.granted', $subjectType, $subjectId, organizationId: $target->public_id, after: $decision->basis);
+            if ($firstTime) {
+                $this->audit->handle('access.granted', $subjectType, $subjectId, organizationId: $target->public_id, after: $decision->basis);
+            }
 
             return $decision;
         }
         try {
-            $this->denials->handle($subjectType, $subjectId, $target->public_id, $decision->basis);
+            if ($firstTime) {
+                $this->denials->handle($subjectType, $subjectId, $target->public_id, $decision->basis);
+            }
         } catch (Throwable $failure) {
             // Same rule as E1.4: a failed audit write never turns a denial into something else.
             Log::critical('Access denial could not be audited.', ['exception' => $failure::class, 'message' => $failure->getMessage()]);
         }
 
         throw (new AccessDenied($subjectType, $subjectId, $target->public_id, $permission->value))->alreadyRecorded();
-    }
-
-    /**
-     * Permissions the account holds in `$target` at the moment, across all its matching assignments.
-     *
-     * @return list<string>
-     */
-    public function permissionsHeld(User $account, Organization $target, ?DateTimeInterface $at = null): array
-    {
-        return array_values(array_filter(
-            array_map(fn (Permission $p) => $p->value, Permission::cases()),
-            fn (string $p) => $this->decide($account, Permission::from($p), $target, $at)->allowed,
-        ));
     }
 
     /**
@@ -182,7 +324,7 @@ final class AccessDecider
     /**
      * Whether the assignment can grant `$permission` at all at the moment, regardless of the target.
      *
-     * @return array{0: string, 1: ?int}
+     * @return array{0: string, 1: ?DefinitionVersion}
      */
     private function assignmentOutcome(RoleAssignment $assignment, Permission $permission, CarbonImmutable $at): array
     {
@@ -200,13 +342,14 @@ final class AccessDecider
             return ['scope_inactive', null];
         }
 
-        return ['applicable', $version->version];
+        return ['applicable', $version];
     }
 
     /** @return array{0: string, 1: array<string, mixed>} */
     private function evaluate(RoleAssignment $assignment, Permission $permission, Organization $target, CarbonImmutable $at): array
     {
         [$outcome, $roleVersion] = $this->assignmentOutcome($assignment, $permission, $at);
+        $roleVersion = $roleVersion?->version;
         if ($outcome !== 'applicable') {
             return [$outcome, []];
         }

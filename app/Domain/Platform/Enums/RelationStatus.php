@@ -7,4 +7,6 @@ enum RelationStatus: string
 {
     case Active = 'active';
     case Suspended = 'suspended';
+    /** Requested, waiting for approval; grants nothing (e.g. a role assignment that needs approval). */
+    case Pending = 'pending';
 }

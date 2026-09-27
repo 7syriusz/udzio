@@ -52,7 +52,7 @@ class RoleAssignment extends Model implements ClassifiesData
 
     protected function casts(): array
     {
-        return ['scope_inheritance' => ScopeInheritance::class];
+        return ['scope_inheritance' => ScopeInheritance::class, 'requested_until' => 'immutable_datetime'];
     }
 
     public function account(): BelongsTo
@@ -108,6 +108,6 @@ class RoleAssignment extends Model implements ClassifiesData
 
     public function dataClassification(): array
     {
-        return array_fill_keys(['public_id', 'user_id', 'access_role_id', 'scope_organization_id', 'scope_inheritance', 'status', 'valid_from', 'valid_to'], DataClass::Internal);
+        return array_fill_keys(['public_id', 'user_id', 'access_role_id', 'scope_organization_id', 'scope_inheritance', 'requested_until', 'requested_by_type', 'requested_by_id', 'status', 'valid_from', 'valid_to'], DataClass::Internal);
     }
 }

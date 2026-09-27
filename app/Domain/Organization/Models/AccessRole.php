@@ -50,7 +50,7 @@ class AccessRole extends Model implements ClassifiesData
 
     protected function casts(): array
     {
-        return ['permissions' => 'array', 'status' => AccessRoleStatus::class];
+        return ['permissions' => 'array', 'grant_rules' => 'array', 'status' => AccessRoleStatus::class];
     }
 
     public function organization(): BelongsTo
@@ -61,7 +61,7 @@ class AccessRole extends Model implements ClassifiesData
     /** Frozen state published after every change (E1.6), so a past access decision can be reconstructed. */
     public function versionSnapshot(): array
     {
-        return ['name' => $this->name, 'permissions' => $this->permissions, 'status' => $this->status->value];
+        return ['name' => $this->name, 'permissions' => $this->permissions, 'grant_rules' => $this->grant_rules ?? [], 'status' => $this->status->value];
     }
 
     /** A retired role grants nothing. */
@@ -87,6 +87,6 @@ class AccessRole extends Model implements ClassifiesData
 
     public function dataClassification(): array
     {
-        return array_fill_keys(['public_id', 'organization_id', 'name', 'permissions', 'status'], DataClass::Internal);
+        return array_fill_keys(['public_id', 'organization_id', 'name', 'permissions', 'grant_rules', 'status'], DataClass::Internal);
     }
 }

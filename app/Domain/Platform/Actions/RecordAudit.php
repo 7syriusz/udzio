@@ -5,6 +5,7 @@ namespace App\Domain\Platform\Actions;
 use App\Domain\Platform\ActorContext;
 use App\Domain\Platform\Enums\AuditResult;
 use App\Domain\Platform\Models\AuditEntry;
+use App\Domain\Platform\OperationCorrelation;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -39,7 +40,7 @@ final class RecordAudit
             'action' => $action,
             'result' => $result->value,
             'reason' => $reason,
-            'correlation_id' => $correlationId ?? (string) Str::ulid(),
+            'correlation_id' => $correlationId ?? app(OperationCorrelation::class)->current() ?? (string) Str::ulid(),
             'occurred_at' => now('UTC'),
             'before_values' => $before,
             'after_values' => $after,

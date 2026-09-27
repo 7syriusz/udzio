@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Domain\Organization;
 
+use App\Domain\Organization\Access\SystemAuthority;
 use App\Domain\Organization\Actions\ArchiveOrganization;
 use App\Domain\Organization\Actions\CreateAccessRole;
 use App\Domain\Organization\Actions\RetireAccessRole;
@@ -22,6 +23,13 @@ use Tests\TestCase;
 class AccessRoleTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Role actions are authorized centrally (E3.6); these tests exercise the actions themselves.
+        $this->app->make(SystemAuthority::class)->enter('test of role actions');
+    }
 
     private function create(Organization $organization, string $name = 'Sekretariat', array $permissions = ['members.view', 'members.manage']): AccessRole
     {

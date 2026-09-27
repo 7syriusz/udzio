@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Domain\Organization;
 
+use App\Domain\Organization\Access\SystemAuthority;
 use App\Domain\Organization\Actions\ArchiveOrganization;
 use App\Domain\Organization\Actions\AssignRole;
 use App\Domain\Organization\Actions\CreateAccessRole;
@@ -44,6 +45,8 @@ class RoleAssignmentTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Role actions are authorized centrally (E3.6); these tests exercise the actions themselves.
+        $this->app->make(SystemAuthority::class)->enter('test of role actions');
         $this->travelTo(CarbonImmutable::parse('2026-01-01 10:00:00', 'UTC'));
         [$this->headquarters, $this->region, $this->branch, $this->otherOrganization] = Organization::factory()->count(4)->create()->all();
         $move = $this->app->make(MoveOrganization::class);

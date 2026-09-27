@@ -256,3 +256,16 @@ posiadanie roli nie wystarczy do dostępu — decyzję podejmie silnik E3.6 (upr
 objęte zakresem według struktury z tej chwili. Nie traktuj przypisania jako zgody na dostęp — decyzję
 podejmuje silnik E3.6. Szczegóły: Z-032.
 
+## 21. Decyzja o dostępie (E3.6)
+
+Operacja chroniona wywołuje na początku (po zablokowaniu rekordów, w transakcji):
+
+```php
+$access->authorize(Permission::MembersManage, $organizacja, 'membership', $membership->public_id);
+```
+
+To jedyne miejsce decyzji — nie sprawdzaj ról ręcznie w kontrolerach. Ekrany mogą pytać `Gate::allows(...)`
+(ten sam decydent). Przekazywanie uprawnień innym: `authorizeDelegation`. Proces techniczny bez konta:
+`SystemAuthority::run($powód, fn () => ...)`. Historyczna decyzja: `$access->decide($konto, $uprawnienie,
+$jednostka, $chwila)`. Szczegóły: Z-033.
+

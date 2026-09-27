@@ -6,16 +6,20 @@ use App\Domain\Organization\Enums\AccessRoleStatus;
 use App\Domain\Organization\Enums\Permission;
 use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
+use App\Domain\Platform\Concerns\HasVersions;
 use App\Domain\Platform\Enums\DataClass;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
-/** ACCESS ROLE: a set of PERMISSIONs defined by an organization (A5 §2.4). Change it through the role actions. */
+/**
+ * ACCESS ROLE: a set of PERMISSIONs defined by an organization (A5 §2.4). Change it through the role actions;
+ * each change publishes a version, which access decisions reference.
+ */
 class AccessRole extends Model implements ClassifiesData
 {
-    use AuditsChanges, HasUlids;
+    use AuditsChanges, HasUlids, HasVersions;
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
@@ -52,6 +56,12 @@ class AccessRole extends Model implements ClassifiesData
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    /** Frozen state published after every change (E1.6), so a past access decision can be reconstructed. */
+    public function versionSnapshot(): array
+    {
+        return ['name' => $this->name, 'permissions' => $this->permissions, 'status' => $this->status->value];
     }
 
     /** A retired role grants nothing. */

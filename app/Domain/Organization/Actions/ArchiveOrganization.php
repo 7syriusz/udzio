@@ -21,6 +21,7 @@ final class ArchiveOrganization
             }
 
             $current->status = OrganizationStatus::Archived;
+            $current->archived_at = now('UTC');
             $current->save();
 
             return $current;

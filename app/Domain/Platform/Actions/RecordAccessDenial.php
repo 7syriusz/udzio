@@ -21,7 +21,7 @@ final class RecordAccessDenial
         private readonly ActorContext $context,
     ) {}
 
-    /** @param array<string, scalar|null> $details Non-sensitive request metadata only. */
+    /** @param array<string, mixed> $details Non-sensitive metadata only (request data or decision basis). */
     public function handle(
         string $subjectType,
         string $subjectId,

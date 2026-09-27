@@ -105,8 +105,9 @@ class OrganizationTest extends TestCase
         $this->assertModelExists($organization);
         $this->assertSame(OrganizationStatus::Archived, $organization->fresh()->status);
         $entry = AuditEntry::query()->where('action', 'organization.updated')->sole();
-        $this->assertSame(['status' => 'active'], $entry->before_values);
-        $this->assertSame(['status' => 'archived'], $entry->after_values);
+        $this->assertEqualsCanonicalizing(['status' => 'active', 'archived_at' => null], $entry->before_values);
+        $this->assertSame('archived', $entry->after_values['status']);
+        $this->assertNotNull($organization->fresh()->archived_at, 'Chwila archiwizacji jest zapisana (E3.6).');
         $this->assertSame('Zakończenie działalności', $entry->reason);
         $this->assertDatabaseCount('audit_entries', 2);
     }

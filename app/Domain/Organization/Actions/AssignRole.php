@@ -2,8 +2,10 @@
 
 namespace App\Domain\Organization\Actions;
 
+use App\Domain\Organization\Access\AccessDecider;
 use App\Domain\Organization\Enums\AccessRoleStatus;
 use App\Domain\Organization\Enums\OrganizationStatus;
+use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Enums\ScopeInheritance;
 use App\Domain\Organization\Models\AccessRole;
 use App\Domain\Organization\Models\Organization;
@@ -19,11 +21,16 @@ use Illuminate\Validation\ValidationException;
 /**
  * Gives an account a role in a SCOPE from now, optionally until a moment (expiry). The scope must be the
  * role's organization or a unit below it; the role and the scope must be active. The inheritance policy
- * is always explicit. Who may assign (roles.assign) is checked by the calling flow (E3.6+).
+ * is always explicit. The current ACTOR must hold `roles.assign` in the scope and every permission of the
+ * role, and cannot assign to itself — checked here for every caller (AccessDecider, E3.6).
  */
 final class AssignRole
 {
-    public function __construct(private readonly AuditReason $reason, private readonly OrganizationHierarchy $hierarchy) {}
+    public function __construct(
+        private readonly AuditReason $reason,
+        private readonly OrganizationHierarchy $hierarchy,
+        private readonly AccessDecider $access,
+    ) {}
 
     public function handle(User $account, AccessRole $role, Organization $scope, ScopeInheritance $inheritance, ?DateTimeInterface $until, string $reason): RoleAssignment
     {
@@ -36,6 +43,7 @@ final class AssignRole
             User::query()->whereKey($account->getKey())->lockForUpdate()->firstOrFail();
             $currentRole = AccessRole::query()->whereKey($role->getKey())->lockForUpdate()->firstOrFail();
             $currentScope = Organization::query()->whereKey($scope->getKey())->lockForUpdate()->firstOrFail();
+            $this->access->authorizeDelegation(Permission::RolesAssign, $currentScope, $currentRole->permissions, $account->getKey(), 'role_assignment');
             if ($currentRole->status !== AccessRoleStatus::Active) {
                 throw ValidationException::withMessages(['role' => 'Nie można nadać wycofanej roli.']);
             }

@@ -85,7 +85,53 @@ Lokalnie PHP 8.3 działa bezpośrednio w WSL, a MySQL 8.4 (ta sama wersja co na 
 | E2.9 | Zamknięcie E2: testy A5-01/02/03, dokumentacja, tag `e2-zamkniety` | Tożsamość gotowa pod organizacje (E3) | Pełny zestaw lokalnie i w CI | 60 min |
 | E2.10 | Porządki przed E3: pusta struktura bazy bez danych przykładowych, ochrona przed skasowaniem bazy, decyzje Z-017/Z-020/Z-022/Z-025 | Czysty schemat A5 E1–E2, decyzje wdrożone | Pełny zestaw, migracja pustej bazy lokalnej i testowej | 120 min |
 
-Etapy E3–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nich.
+## Zasady podziału E3 i dalej (budżet pracy AI)
+
+Podetapy są cięte tak, aby jedna sesja AI zmieściła je bez wyczerpania zasobów:
+- czas 60–120 min; zakres jednego pojęcia albo jednej warstwy (model **albo** ekran, nie oba naraz);
+- orientacyjnie do ~15 zmienionych plików i 1–2 nowych tabel na podetap;
+- testy zawężone do zmienianego obszaru w trakcie pracy, pełny zestaw raz przed commitem;
+- jeśli podetap rośnie ponad budżet — zatrzymanie, commit tego, co zielone, i podział na `a`/`b` zamiast przeciągania;
+- każdy podetap kończy się scaleniem do `main`, więc przerwanie pracy nigdy nie zostawia połowy funkcji na gałęzi.
+
+## E3 — Organizacja i dostęp (A5 §2.1, §2.3, §2.4, §1.1 widoczność; A5-01, A5-05, A5-14, A5-17)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E3.1 | ORGANIZATION: model globalny (publiczny ULID, nazwa, status aktywna/zarchiwizowana), klasyfikacja pól, utworzenie, zmiana nazwy, archiwizacja bez kasowania | Organizacja odrębna od PERSON, z historią zmian | Tworzenie, zmiana z powodem, archiwizacja, brak usuwania | 90 min |
+| E3.2 | Struktura: jednostki jako ta sama ORGANIZATION z rodzicem; hierarchia dowolnej głębokości, przeniesienie jednostki jako relacja w czasie, zapytania o przodków i potomków | Firma → oddział → dział bez nowych typów Core | Głębokość, zakaz cykli, historia przeniesień, stan „na dzień” | 120 min |
+| E3.3 | Członkostwo: RELATION ROLE PERSON → ORGANIZATION (funkcja, status, okres) na wzorcu E1.5; przyjęcie, zawieszenie, zmiana funkcji, przeniesienie, zakończenie | Historia członkostwa nie ginie (A5-05) | Stan na dzień, przeniesienie między jednostkami, brak nakładania, test współbieżny | 120 min |
+| E3.4 | PERMISSION i ACCESS ROLE: katalog uprawnień w kodzie (bez nazw branżowych), role jako dane organizacji = zestaw uprawnień, zmiany ról audytowane | Rola to konfiguracja, nie zaszycie w kodzie | Tworzenie roli, nieznane uprawnienie odrzucone, audyt zmian | 90 min |
+| E3.5 | Przypisanie roli: ACCOUNT → ACCESS ROLE w SCOPE (jednostka) z okresem; jawna polityka dziedziczenia „tylko ta jednostka” / „jednostka i potomkowie” | SCOPE jest jawny, bez automatycznego dziedziczenia (A5 §2.4) | Nadanie, wygaśnięcie, dziedziczenie tylko wg polityki, brak w obcej gałęzi | 120 min |
+| E3.6 | Silnik autoryzacji: PERMISSION ∧ SCOPE ∧ aktywne przypisanie w chwili działania; integracja z Gate/politykami Laravel; odmowa = `AccessDenied` (404 dla obcej organizacji) | Jedno miejsce decyzji o dostępie (A5-14) | Pozytywne i negatywne: brak uprawnienia, obca organizacja, wygasła rola, reprezentacja ≠ rola | 120 min |
+| E3.7 | Izolacja danych: zapytania ograniczone do dozwolonych jednostek; globalna tożsamość bez globalnej widoczności (PERSON widoczna tylko przez kontekst) | Administrator jednej organizacji nie widzi danych innej (A5-01) | Listy i odczyty w obcej organizacji puste/404, audyt odmów | 120 min |
+| E3.8 | Pierwszy administrator i MFA: komenda instalacyjna tworząca organizację i pierwszego administratora (bez danych przykładowych); role z wymogiem MFA → middleware `mfa` | Start systemu bez seederów; administrator z MFA (A5 §12) | Komenda idempotentna, rola z MFA bez MFA → 403 | 90 min |
+| E3.9 | Uprawnienia do operacji E2: rozstrzyganie `PersonLinkReview` (Z-022) i ustanawianie REPRESENTATION przez uprawnioną rolę (Z-025) w zakresie | Procedury E2 mają właściciela w systemie ról | Uprawniony operator tak, inny i obca organizacja nie | 90 min |
+| E3.10 | Ekrany: organizacja i struktura (drzewo, tworzenie jednostki, przeniesienie) | Administrator zarządza strukturą | Testy HTTP i odmów | 120 min |
+| E3.11 | Ekrany: członkowie i role (lista członków, przyjęcie/zakończenie, role i przypisania) | Administrator zarządza członkami i dostępem | Testy HTTP i odmów, 404 dla obcych | 120 min |
+| E3.12 | Zamknięcie E3: scenariusz przekrojowy A5-01/05/14/17, ARCHITEKTURA, A5-POKRYCIE, tag `e3-zamkniety` | Organizacje i dostęp gotowe pod wydarzenia (E4) | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E3: ok. 19–20 h pracy w 12 podetapach.
+
+## E4 — Wydarzenia, program i grupy (A5 §2.2, §3.1, §3.3; A5-06, A5-17)
+
+| Podetap | Zakres | Wynik / kryterium zakończenia | Testy | Czas |
+|---|---|---|---|---|
+| E4.1 | EVENT: jedno pojęcie Core (publiczny ULID, organizacja-właściciel, tytuł, opis, czas początku/końca w UTC + strefa prezentacji), bez typów branżowych | Wydarzenie należy do organizacji i jej zakresu | Tworzenie, walidacja czasu, izolacja organizacji | 90 min |
+| E4.2 | Hierarchia EVENT: podwydarzenia dowolnej głębokości, zakaz cykli, poddrzewo, przeniesienie z historią; reguła czasu dziecka względem rodzica jako konfiguracja | Cykl → termin → sesja bez nowych typów (A5-06) | Głębokość, cykle, przeniesienie, reguła czasu | 120 min |
+| E4.3 | Cykl życia: szkic → opublikowane → odwołane/zakończone; przejścia z regułami i powodem, uprawnienie `event.publish` | Publikacja i odwołanie są kontrolowane i audytowane | Dozwolone i niedozwolone przejścia, uprawnienia | 90 min |
+| E4.4 | Program: pozycje programu (lekkie, bez własnego zachowania) i awans pozycji do EVENT, gdy potrzebuje zapisów, zasobów lub uprawnień (A5 §3.1) | Program nie mnoży EVENT-ów bez potrzeby | Pozycje, kolejność, awans z zachowaniem historii | 90 min |
+| E4.5 | Dostęp do wydarzeń: EVENT jako SCOPE ról, jawna polityka dziedziczenia na podwydarzenia, izolacja | Organizator podwydarzenia nie widzi reszty bez polityki | Pozytywne/negatywne, dziedziczenie wg polityki | 120 min |
+| E4.6 | GROUP: neutralny zbiór osób lub podmiotów, trwały albo czasowy; członkostwo jako relacja w czasie; relacje grupy z EVENT-em i organizacją | Rodzina, drużyna, wolontariusze bez nowych typów Core (A5 §2.2) | Członkostwo w czasie, relacje, izolacja | 120 min |
+| E4.7 | Ekrany: wydarzenia (lista, tworzenie, drzewo podwydarzeń, publikacja) | Organizator zarządza wydarzeniami | Testy HTTP i odmów | 120 min |
+| E4.8 | Ekrany: program i grupy | Organizator zarządza programem i grupami | Testy HTTP i odmów | 120 min |
+| E4.9 | Zamknięcie E4: scenariusz A5-06/17, dokumentacja, tag `e4-zamkniety` | Wydarzenia gotowe pod zgłoszenia (E5) | Pełny zestaw lokalnie i w CI | 60 min |
+
+Razem E4: ok. 15–16 h pracy w 9 podetapach. Poza zakresem E4: ACTIVITY jako fakt wykonania (E6), cykliczność RECURRENCE/PERIOD (mechanika E5 wg A5 §3.3), wspólne pule miejsc grup (A5 §2.2 — do aktualizacji modelu).
+
+Założenia do zapisania w trakcie (zasada 3, bez zatrzymywania pracy): domyślna polityka dziedziczenia uprawnień (brak dziedziczenia), sposób utworzenia pierwszego administratora, reguła czasu podwydarzeń, strefa czasowa wydarzenia.
+
+Etapy E5–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nich.
 
 ## Postęp wykonania
 
@@ -132,3 +178,4 @@ Etapy E3–E12 zostaną rozpisane na podetapy przed rozpoczęciem każdego z nic
 - E2.9 scalony do `main`: `b27c94f`; CI gałęzi zielone, CI `main` — przebieg `36242187635` (sukces). CI `main` zielone dla wszystkich scaleń E2.1–E2.9. Tag `e2-zamkniety` został pierwotnie nadany na `b27c94f`.
 - E2.10 (2026-09-27, zlecone przed E3): przegląd migracji pod kątem pozostałości starego Skalika — w tabelach i kolumnach brak; usunięty specjalny typ reprezentacji `guardian` (zastąpiony sposobem ustanowienia, podstawą i ACTOR-em ustanawiającym, Z-025) i demonstracyjny użytkownik z `DatabaseSeeder` (seeder pusty, Z-027). Decyzje wdrożone: Z-022 procedura naprawcza `PersonLinkReview` bez ujawniania danych; Z-020 kontrakt `ContactCodeSender`, telefon bez operatora nieweryfikowalny; Z-017 retencja i sposób usunięcia dla każdej klasy (rekomendacja do akceptacji); ochrona `DestructiveCommandGuard`. Lokalna baza deweloperska utworzona od nowa i zmigrowana od zera bez seederów; baza testowa odtworzona osobno. Pełny zestaw: **190 testów / 685 asercji**, także w losowej kolejności.
 - **E2 zamknięty:** zamknięciem jest commit scalający gałąź `e2/10-czysta-baza-i-decyzje` do `main`; tag `e2-zamkniety` przeniesiono na ten commit po zielonym CI na `main` (wcześniejsze położenie: `b27c94f`). E3 nie zostało rozpoczęte — czeka na akceptację raportu z E2.10.
+- 2026-09-27: rozpisano E3 (12 podetapów) i E4 (9 podetapów) z zasadami budżetu pracy AI. E3 nie zostało rozpoczęte.

@@ -8,7 +8,7 @@ Uzupełniane przy zamknięciu każdego etapu.
 | A5-01 PERSON niezależna od kontekstów | E2: gotowe; widoczność przez SCOPE w E3 | `Person` (bez kolumny organizacji), relacje wskazują osobę | `E2AcceptanceTest`, `PersonTest` |
 | A5-02 ACCOUNT opcjonalny, dołączany później | E2: gotowe | `LinkAccountToPerson`, `ResolveAccountPerson` (po weryfikacji e-maila) | `E2AcceptanceTest`, `AccountTest`, `AccountPersonLinkTest` |
 | A5-03 ACTOR ≠ SUBJECT | E2: gotowe (reprezentacja, kontakt ≠ osoba) | `ActorContext`, `RecordAudit`, `ActOnBehalf`, `Contact` | `E1AcceptanceTest`, `E2AcceptanceTest`, `RepresentationTest`, `ContactTest` |
-| A5-04 Wykonawca, przedmiot, powód, przed/po | E1: gotowe | `AuditsChanges`, `AuditReason`, klasyfikacja (E1.7) | `E1AcceptanceTest`, `AuditsChangesTest`, `DataClassificationTest` |
+| A5-04 Wykonawca, przedmiot, powód, przed/po | E1: gotowe | `AuditsChanges`, `AuditReason`, klasyfikacja (E1.7) | `E1AcceptanceTest`, `AuditsChangesTest`, `DataClassificationTest`, `OrganizationTest` |
 | A5-05 Relacja z okresem, statusem i historią | E1: wzorzec gotowy; ROLE w E3 | `HasValidityPeriod`, `ValidityColumns` | `E1AcceptanceTest`, `HasValidityPeriodTest`, `ValidityPeriodConcurrencyTest` |
 | A5-11 Definicja i wykonanie rozdzielone, wersjonowane | E1: wzorzec gotowy | `HasVersions`, `RecordsDefinitionVersion`, `definition_versions` | `E1AcceptanceTest`, `DefinitionVersioningTest`, `DefinitionVersionConcurrencyTest` |
 | A5-14 Odmowa poza zakresem audytowana | E1: audyt odmów gotowy; PERMISSION + SCOPE w E3 | `AccessDenied`, `AuditAccessDenials`, `RecordAccessDenial` | `AccessDenialAuditTest`, `AccessDenialRollbackTest` |

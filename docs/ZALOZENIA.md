@@ -414,3 +414,20 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - Brak tras HTTP i ekranów (E3.11). Migracja addytywna, bez danych przykładowych; `down()` odmawia
   usunięcia niepustej tabeli.
 
+## Z-031 — PERMISSION i ACCESS ROLE (E3.4, 2026-09-27)
+
+- A5 §2.4: **PERMISSION** to prawo do jednej operacji; katalog jest w kodzie (`Permission`), bo każdą wartość
+  sprawdza kod. Nazwy opisują operacje (`members.manage`, `roles.assign`), nigdy branżę (A5-17). Kolejne
+  etapy dopisują swoje uprawnienia (wydarzenia E4, zapisy E5, skanowanie E6, finanse E8…).
+- **ACCESS ROLE** to dane organizacji: nazwa + zestaw uprawnień (`access_roles`). Każda organizacja definiuje
+  własne role; nie ma ról globalnych ani zaszytych w kodzie. Nieznane uprawnienie i pusty zestaw są
+  odrzucane; zestaw jest zapisywany bez duplikatów i posortowany.
+- **F — nazwy ról:** 1–100 znaków, unikalne wśród aktywnych ról jednej organizacji (bez rozróżniania wielkości
+  liter); inne organizacje mogą używać tych samych nazw.
+- Zmiana nazwy lub uprawnień wymaga powodu, a audyt zapisuje zestaw przed i po. Rola jest **wycofywana,
+  nie usuwana** (model i wyzwalacz MySQL); wycofana rola nic nie nadaje i nie może być zmieniana, a jej nazwę
+  można użyć ponownie. Rola nie przechodzi do innej organizacji. Role definiuje tylko aktywna organizacja.
+- Poza E3.4: przypisanie roli do konta i SCOPE (E3.5), decyzja o dostępie (E3.6), wymóg MFA dla roli (E3.8).
+- Poprawka przy okazji: ochrony „rekord zamknięty” w `AccessRole` i `PersonLinkReview` (E2.10) porównują
+  oryginalny status jako enum (wcześniej tekst — ochrona w modelu nie działała; akcje ją zastępowały).
+

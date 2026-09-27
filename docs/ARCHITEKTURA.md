@@ -209,3 +209,16 @@ potwierdzonego MFA — dla tras administracyjnych od E3.
 (`migrate:fresh`, `migrate:refresh`, `migrate:reset`, `migrate:rollback`, `db:wipe`) działają tylko lokalnie
 lub w testach i tylko na bazach `*_test` albo jawnie wskazanej w `DB_ALLOW_DESTRUCTIVE_ON`
 (`DestructiveCommandGuard`, Z-027).
+
+## 16. Organizacja (E3.1, moduł `Organization`)
+
+`Organization` jest globalnym obiektem odrębnym od PERSON (A5 §2.1), identyfikowanym publicznie przez
+niezmienny ULID. `OrganizationStatus`: `active` / `archived`. `CreateOrganization`, `RenameOrganization`
+i `ArchiveOrganization` są punktami zapisu; korzystają z `AuditsChanges`, `AuditReason` i klasyfikacji pól.
+Zmiany istniejącego rekordu są serializowane blokadą w transakcji, a powód trafia do audytu.
+Historia wskazuje organizację przez jej ULID. Archiwizacja nie usuwa rekordu; powtórzenie jest bezskutkowe.
+
+Nie ma jeszcze tras organizacji ani automatycznej roli założyciela: członkostwo, role, izolacja i ekrany
+mają osobne podetapy E3. Hierarchia jest zakresem E3.2. Założenia i granice zabezpieczeń: Z-028.
+Testy: `tests/Feature/Domain/Organization/OrganizationTest.php` (MySQL, również blokada DELETE i wycofanie
+zmian po awarii audytu). Fabryka służy wyłącznie testom; migracja nie dodaje danych przykładowych.

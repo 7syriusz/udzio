@@ -351,3 +351,22 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   (kontener `udzio-mysql`, port 127.0.0.1:3307) — nie produkcyjnej ani współdzielonej. Polecenie przerwało
   się na migracji audytu (brak uprawnień do wyzwalaczy dla konta `udzio`), zostawiając bazę w połowie.
   2026-09-27 baza została utworzona od nowa i zmigrowana od zera (konto administratora zgodnie z Z-012).
+
+## Z-028 — ORGANIZATION: cykl życia E3.1 (2026-09-27)
+
+- A5 §2.1: organizacja jest odrębna od PERSON. E3.1 dodaje globalny rekord organizacji,
+  bez automatycznego tworzenia osoby, konta, członkostwa czy roli; te powiązania należą do dalszych podetapów.
+- Nazwa: po obcięciu brzegowych białych znaków musi zawierać widoczny znak, maksymalnie 255 znaków.
+  Nazwy nie są unikalne — to publiczny ULID rozróżnia organizacje. `public_id`, `name`, `status` mają
+  klasę INTERNAL: utworzenie organizacji nie oznacza publicznego udostępnienia jej danych.
+- Status początkowy `active`; archiwizacja zmienia go na `archived` i zachowuje rekord oraz audyt.
+  Przyjęte odwracalne założenie: akcja zmiany nazwy odmawia zmiany organizacji zarchiwizowanej;
+  przywracanie nie jest operacją E3.1. Powtórna archiwizacja nie dopisuje pozornej zmiany.
+- Zmiana nazwy i archiwizacja wymagają powodu. Akcje pobierają aktualny rekord pod blokadą MySQL
+  w transakcji; audyt zapisuje się atomowo. Kontekst `audit_entries.organization_id` wskazuje publiczny
+  ULID organizacji, natomiast `subject_id` pozostaje wewnętrznym ID zgodnie z `AuditsChanges`.
+- `delete()` i trigger MySQL blokują usunięcie rekordu (także masowe DELETE). Nie jest to ochrona
+  przed administracyjnym DROP/TRUNCATE; obowiązują ograniczenia uprawnień i Z-027.
+  `down()` migracji odmawia usunięcia niepustej tabeli. Wycofanie aplikacji zachowuje tabelę i historię.
+- Operacje są wewnętrznymi akcjami domenowymi. Nie udostępniono tras HTTP przed budową uprawnień
+  E3.4–E3.7 i ekranów E3.10. Nie należy omijać akcji masowymi UPDATE: omijają audyt modelu.

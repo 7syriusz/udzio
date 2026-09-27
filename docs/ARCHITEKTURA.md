@@ -235,3 +235,10 @@ Dostęp do historii: `OrganizationParent::where('organization_id', $id)->orderBy
 Odczyt relacji w chwili: `activeAt($moment)`. Nazwy są aktualne; dawną nazwę odtwarza audyt E3.1.
 Nie zapisuj struktury z pominięciem `MoveOrganization`. Zasady czasu, serializacji i wycofania: Z-029.
 Testy: `OrganizationHierarchyTest` i `OrganizationHierarchyConcurrencyTest` (dwa procesy na MySQL).
+
+## 18. Członkostwo (E3.3)
+
+`Membership` (PERSON → ORGANIZATION) to relacja w czasie z funkcją i statusem. Zmieniaj ją wyłącznie akcjami
+`AdmitMember`, `ChangeMembership`, `TransferMembership`, `EndMembership` — blokują osobę i pilnują aktywności
+organizacji. Członkostwo nie nadaje uprawnień; do dostępu służą role (E3.4+). Szczegóły: Z-030.
+

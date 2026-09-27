@@ -27,6 +27,9 @@ final class AuditAccessDenials
         $route = $request->route();
         $target = $route?->getName() ?? $request->method().' '.($route?->uri() ?? 'unmatched');
         $subject = $denial instanceof AccessDenied ? $denial : null;
+        if ($subject?->recorded) {
+            return null;
+        }
 
         try {
             app(RecordAccessDenial::class)->handle(

@@ -2,8 +2,10 @@
 
 namespace App\Domain\Organization\Actions;
 
+use App\Domain\Organization\Access\AccessDecider;
 use App\Domain\Organization\Enums\AccessRoleStatus;
 use App\Domain\Organization\Enums\OrganizationStatus;
+use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Models\AccessRole;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Platform\AuditReason;
@@ -13,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 
 final class CreateAccessRole
 {
-    public function __construct(private readonly AuditReason $reason) {}
+    public function __construct(private readonly AuditReason $reason, private readonly AccessDecider $access) {}
 
     /** @param list<string> $permissions */
     public function handle(Organization $organization, string $name, array $permissions, string $reason): AccessRole
@@ -28,12 +30,16 @@ final class CreateAccessRole
                     throw ValidationException::withMessages(['organization' => 'Organizacja musi być aktywna.']);
                 }
 
-                return AccessRole::query()->create([
+                $this->access->authorizeDelegation(Permission::RolesManage, $current, $permissions, null, 'access_role');
+                $role = AccessRole::query()->create([
                     'organization_id' => $current->id,
                     'name' => $name,
                     'permissions' => $permissions,
                     'status' => AccessRoleStatus::Active,
                 ]);
+                $role->publishVersion();
+
+                return $role;
             }));
         } catch (QueryException $e) {
             throw AccessRoleName::duplicate($e);

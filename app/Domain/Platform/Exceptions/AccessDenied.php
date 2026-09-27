@@ -22,6 +22,16 @@ class AccessDenied extends AuthorizationException
         parent::__construct('This action is unauthorized.');
     }
 
+    /** True when the denial was already written to the audit (e.g. with its decision basis). */
+    public bool $recorded = false;
+
+    public function alreadyRecorded(): static
+    {
+        $this->recorded = true;
+
+        return $this;
+    }
+
     public function hideAsNotFound(): static
     {
         return $this->withStatus(404);

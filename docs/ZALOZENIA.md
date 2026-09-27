@@ -449,3 +449,33 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   aktywna rola powstaje w E3.6. Kto może nadawać role (`roles.assign`) — przez przepływ wywołujący (E3.6+).
   Historia nieusuwalna (model i wyzwalacz MySQL). Brak tras HTTP i ekranów (E3.11).
 
+## Z-033 — Decyzja o dostępie i centralna kontrola ról (E3.6, 2026-09-27)
+
+- **Jedno miejsce decyzji:** `AccessDecider::decide(konto, uprawnienie, jednostka docelowa, chwila)` na podstawie:
+  ACCOUNT, aktywnego (w tej chwili) przypisania roli, wersji roli z tej chwili (uprawnienie w zestawie, rola
+  aktywna), aktywności organizacji-właściciela roli, jednostki zakresu i jednostki docelowej, oraz struktury
+  obowiązującej w tej chwili (`unit_only` / `unit_and_descendants`, E3.5 — zakres dynamiczny).
+  Wynik jest jednoznaczny: `allowed` albo `denied`, zawsze z podstawą.
+- **Podstawa decyzji:** przy zezwoleniu — przypisanie, rola i jej wersja, uprawnienie, jednostka zakresu,
+  polityka dziedziczenia i ścieżka struktury (identyfikatory ówczesnych okresów rodzica od jednostki docelowej
+  do jednostki zakresu); przy odmowie — przyczyna (`actor_without_account`, `target_inactive`,
+  `no_active_assignment`, `no_matching_assignment`) i wynik oceny każdego rozważonego przypisania
+  (`role_inactive`, `permission_missing`, `role_organization_inactive`, `scope_inactive`, `scope_not_covering`).
+- **Odtwarzalność:** przypisania i struktura są okresami (E1.5), role mają wersje (E1.6 — wersja publikowana
+  przy każdej zmianie), archiwizacja organizacji ma chwilę (`archived_at`). Decyzję z przeszłości odtwarza się,
+  wywołując `decide` dla tamtej chwili. Dodatkowo `authorize` zapisuje każdą decyzję dla operacji chronionej:
+  `access.granted` (w transakcji operacji) albo `access.denied` z pełną podstawą (niezależne połączenie, E1.4).
+  Decyzja jest ustalana w całości przed zapisem — jeden fakt na decyzję. Błąd zapisu odmowy nie zmienia odmowy.
+- **Centralna kontrola ról:** `CreateAccessRole`, `UpdateAccessRole`, `RetireAccessRole` (`roles.manage`)
+  oraz `AssignRole`, `RevokeRoleAssignment` (`roles.assign`) same wywołują decydenta dla bieżącego ACTOR-a —
+  każda droga (ekran, API, komenda, automat) przechodzi przez ten sam mechanizm; nie zależy to od kontrolera.
+- **F — reguły delegowania:** konto nie może nadać roli samemu sobie ani przekazać (w roli lub przypisaniu)
+  uprawnień, których samo nie ma w tym zakresie.
+- **Proces bez konta:** odmowa, chyba że działa w jawnym, audytowanym trybie `SystemAuthority` (z powodem;
+  tylko ACTOR typu `process`, nigdy żądanie HTTP) — przewidziany dla instalacji pierwszego administratora (E3.8).
+- **Rozdzielenie ról:** decyzja korzysta wyłącznie z ACCESS ROLE przypisanych do ACCOUNT. RELATION ROLE
+  (członkostwo, reprezentacja) opisują znaczenie PERSON w kontekście i nie dają dostępu.
+- **Laravel Gate:** `Gate::allows('members.manage', $organizacja)` pyta tego samego decydenta (do ekranów);
+  operacje domenowe używają `authorize`, które zapisuje decyzję.
+- Poprawka: decydent czyta aktualny stan jednostki z bazy (nie z przekazanego obiektu).
+

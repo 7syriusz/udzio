@@ -35,7 +35,7 @@ trait HasValidityPeriod
             if ($period->isDirty('valid_from')) {
                 throw new LogicException('The start of a validity period cannot be changed.');
             }
-            if ($period->getOriginal('valid_to') !== null) {
+            if ($period->getOriginal('valid_to') !== null && ! $period->isShorteningScheduledEnd()) {
                 throw new LogicException('A closed validity period is history and cannot be changed.');
             }
         });
@@ -122,6 +122,41 @@ trait HasValidityPeriod
         return $this->getConnection()->transaction(function () use ($at): static {
             return tap($this->lockedOpenPeriod($at), fn (self $period) => $period->forceFill(['valid_to' => $at])->save());
         });
+    }
+
+    /**
+     * Brings a scheduled end (still in the future) forward to `$at`, not earlier than now: nothing that has
+     * already happened changes. Used e.g. to revoke an assignment that was set to expire later.
+     */
+    public function shortenScheduledEnd(DateTimeInterface $at): static
+    {
+        $at = CarbonImmutable::instance($at)->utc();
+
+        return $this->getConnection()->transaction(function () use ($at): static {
+            /** @var static $current */
+            $current = static::query()->whereKey($this->getKey())->lockForUpdate()->firstOrFail();
+            if ($current->valid_to === null || $current->valid_to->lessThanOrEqualTo(CarbonImmutable::now('UTC'))) {
+                throw new ValidityConflict('Only a period with an end still in the future can be shortened.');
+            }
+            $current->forceFill(['valid_to' => $at])->save();
+
+            return $current;
+        });
+    }
+
+    /** Update of a closed period allowed only as: end still in the future moved earlier, to now or later. */
+    private function isShorteningScheduledEnd(): bool
+    {
+        $original = $this->getOriginal('valid_to');
+        $now = CarbonImmutable::now('UTC');
+        if (array_diff(array_keys($this->getDirty()), ['valid_to', 'updated_at']) !== [] || $original === null || $this->valid_to === null) {
+            return false;
+        }
+
+        return CarbonImmutable::instance($original)->greaterThan($now)
+            && $this->valid_to->greaterThanOrEqualTo($now)
+            && $this->valid_to->lessThan($original)
+            && $this->valid_to->greaterThan($this->valid_from);
     }
 
     /** All periods of this relation, oldest first. */

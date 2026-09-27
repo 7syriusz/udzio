@@ -249,3 +249,10 @@ nie branży). Role (`AccessRole`) są danymi organizacji — twórz i zmieniaj j
 `UpdateAccessRole`, `RetireAccessRole`. `AccessRole::grants()` zwraca `false` dla roli wycofanej. Samo
 posiadanie roli nie wystarczy do dostępu — decyzję podejmie silnik E3.6 (uprawnienie + SCOPE). Szczegóły: Z-031.
 
+## 20. Przypisanie roli w zakresie (E3.5)
+
+`AssignRole` nadaje kontu rolę w jednostce z jawną polityką `ScopeInheritance` (i opcjonalnym terminem),
+`RevokeRoleAssignment` kończy przypisanie. `RoleAssignment::coveredOrganizationIds($chwila)` zwraca jednostki
+objęte zakresem według struktury z tej chwili. Nie traktuj przypisania jako zgody na dostęp — decyzję
+podejmuje silnik E3.6. Szczegóły: Z-032.
+

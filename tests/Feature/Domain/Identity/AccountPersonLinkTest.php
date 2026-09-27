@@ -193,4 +193,16 @@ class AccountPersonLinkTest extends TestCase
         $this->expectException(\LogicException::class);
         $resolve->handle($review->fresh(), null, 'second resolution');
     }
+
+    public function test_resolved_review_is_immutable_even_outside_the_action(): void
+    {
+        $maria = $this->personWithEmail('family@example.test', given: 'Maria');
+        $this->personWithEmail('family@example.test', given: 'Jan');
+        $account = User::factory()->unverified()->create(['email' => 'family@example.test']);
+        $this->verifyThroughLink($account);
+        $review = $this->app->make(ResolvePersonLinkReview::class)->handle(PersonLinkReview::query()->sole(), $maria, 'verified');
+
+        $this->expectException(\LogicException::class);
+        $this->app->make(AuditReason::class)->because('tampering', fn () => $review->fresh()->update(['status' => PersonLinkReviewStatus::Open]));
+    }
 }

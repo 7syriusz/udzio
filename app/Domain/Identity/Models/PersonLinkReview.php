@@ -27,7 +27,7 @@ class PersonLinkReview extends Model implements ClassifiesData
     protected static function booted(): void
     {
         static::updating(function (self $review): void {
-            if ($review->getOriginal('status') === PersonLinkReviewStatus::Resolved->value) {
+            if ($review->getOriginal('status') === PersonLinkReviewStatus::Resolved) {
                 throw new LogicException('A resolved review cannot change.');
             }
         });

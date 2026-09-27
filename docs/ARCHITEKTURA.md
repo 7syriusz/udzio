@@ -242,3 +242,10 @@ Testy: `OrganizationHierarchyTest` i `OrganizationHierarchyConcurrencyTest` (dwa
 `AdmitMember`, `ChangeMembership`, `TransferMembership`, `EndMembership` — blokują osobę i pilnują aktywności
 organizacji. Członkostwo nie nadaje uprawnień; do dostępu służą role (E3.4+). Szczegóły: Z-030.
 
+## 19. Uprawnienia i role dostępowe (E3.4)
+
+Nowa operacja wymagająca kontroli dostępu dostaje wartość w `Organization\Enums\Permission` (nazwa operacji,
+nie branży). Role (`AccessRole`) są danymi organizacji — twórz i zmieniaj je akcjami `CreateAccessRole`,
+`UpdateAccessRole`, `RetireAccessRole`. `AccessRole::grants()` zwraca `false` dla roli wycofanej. Samo
+posiadanie roli nie wystarczy do dostępu — decyzję podejmie silnik E3.6 (uprawnienie + SCOPE). Szczegóły: Z-031.
+

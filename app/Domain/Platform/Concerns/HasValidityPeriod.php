@@ -65,7 +65,7 @@ trait HasValidityPeriod
     /** Periods covering the given moment, whatever their status. */
     public function scopeEffectiveAt(Builder $query, DateTimeInterface $moment): Builder
     {
-        $at = CarbonImmutable::instance($moment)->utc();
+        $at = CarbonImmutable::instance($moment)->utc()->format('Y-m-d H:i:s.u');
 
         return $query->where('valid_from', '<=', $at)
             ->where(fn (Builder $q) => $q->whereNull('valid_to')->orWhere('valid_to', '>', $at));
@@ -158,7 +158,7 @@ trait HasValidityPeriod
             throw new LogicException('All validity key columns are required.');
         }
         $overlapping = static::query()->where($key)->lockForUpdate()
-            ->where(fn (Builder $q) => $q->whereNull('valid_to')->orWhere('valid_to', '>', $from))
+            ->where(fn (Builder $q) => $q->whereNull('valid_to')->orWhere('valid_to', '>', $from->format('Y-m-d H:i:s.u')))
             ->exists();
         if ($overlapping) {
             throw new ValidityConflict('The relation already has a period covering this moment.');

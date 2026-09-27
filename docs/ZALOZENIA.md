@@ -395,3 +395,22 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   Wycofanie kodu zachowuje tabelę historii; `down()` odmawia skasowania niepustej tabeli.
 - Poprawka wzorca E1.5: warunki czasu przekazują do SQL pełne `Y-m-d H:i:s.u`, bo domyślne bindowanie
   obiektu daty przez połączenie Laravel obcinało mikrosekundy i psuło odczyt/zmiany na granicy okresów.
+
+## Z-030 — Członkostwo w organizacji (E3.3, 2026-09-27)
+
+- A5 §2.3: członkostwo to RELATION ROLE PERSON → ORGANIZATION (`memberships`) na wzorcu E1.5: funkcja,
+  status (`active`/`suspended`), okres i historia. Klucz relacji: osoba + organizacja — osoba może należeć
+  jednocześnie do wielu organizacji, ale w jednej ma najwyżej jeden otwarty okres.
+- **Członkostwo nie jest rolą dostępową:** samo w sobie nie daje żadnych uprawnień (ACCESS ROLE — E3.4–E3.5).
+- Operacje (każda z powodem, skuteczna „teraz”, bez datowania wstecz): `AdmitMember`, `ChangeMembership`
+  (funkcja i/lub zawieszenie/wznowienie = nowy okres; ten sam stan = brak zmian), `TransferMembership`
+  (zamyka okres w jednostce źródłowej i otwiera w docelowej z tą samą funkcją i statusem oraz odnośnikiem
+  `transferred_from_id`), `EndMembership`. Ponowne przyjęcie po zakończeniu otwiera nowy okres.
+- **F — funkcja:** tekst 1–100 znaków (bez listy słownikowej); słownik funkcji organizacji może dojść jako
+  konfiguracja. Przyjęcie i przeniesienie tylko do aktywnej organizacji.
+- Współbieżność: każdy zapis członkostwa blokuje najpierw osobę; równoległe przyjęcia lub przeniesienia tej
+  samej osoby dają jeden wynik (testy dwóch procesów MySQL). Historia jest nieusuwalna (model i wyzwalacz
+  MySQL), okresy nie są przepisywane. Klasa danych pól: INTERNAL.
+- Brak tras HTTP i ekranów (E3.11). Migracja addytywna, bez danych przykładowych; `down()` odmawia
+  usunięcia niepustej tabeli.
+

@@ -222,3 +222,16 @@ Nie ma jeszcze tras organizacji ani automatycznej roli założyciela: członkost
 mają osobne podetapy E3. Hierarchia jest zakresem E3.2. Założenia i granice zabezpieczeń: Z-028.
 Testy: `tests/Feature/Domain/Organization/OrganizationTest.php` (MySQL, również blokada DELETE i wycofanie
 zmian po awarii audytu). Fabryka służy wyłącznie testom; migracja nie dodaje danych przykładowych.
+
+## 17. Struktura organizacji (E3.2)
+
+`OrganizationParent` to relacja rodzic–jednostka z `HasValidityPeriod`, `AuditsChanges` i publicznym ULID
+każdego okresu. `MoveOrganization::handle($organization, $parentOrNull, $reason)` kontroluje aktywność,
+cykle, blokady i atomowe zamknięcie/otwarcie relacji. `null` odłącza jednostkę jako korzeń.
+`OrganizationHierarchy::ancestorsAt` zwraca przodków od najbliższego, a `descendantsAt` potomków poziomami;
+obie operacje przyjmują moment i nie wywodzą z drzewa uprawnień. Nie filtrują historii przez aktualny status.
+
+Dostęp do historii: `OrganizationParent::where('organization_id', $id)->orderBy('valid_from')->get()`.
+Odczyt relacji w chwili: `activeAt($moment)`. Nazwy są aktualne; dawną nazwę odtwarza audyt E3.1.
+Nie zapisuj struktury z pominięciem `MoveOrganization`. Zasady czasu, serializacji i wycofania: Z-029.
+Testy: `OrganizationHierarchyTest` i `OrganizationHierarchyConcurrencyTest` (dwa procesy na MySQL).

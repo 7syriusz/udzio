@@ -370,3 +370,28 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   `down()` migracji odmawia usunięcia niepustej tabeli. Wycofanie aplikacji zachowuje tabelę i historię.
 - Operacje są wewnętrznymi akcjami domenowymi. Nie udostępniono tras HTTP przed budową uprawnień
   E3.4–E3.7 i ekranów E3.10. Nie należy omijać akcji masowymi UPDATE: omijają audyt modelu.
+
+## Z-029 — Hierarchia organizacji z historią (E3.2, 2026-09-27)
+
+- A5 §2.1/2.3: jednostka jest tą samą ORGANIZATION; rodzic to relacja w czasie,
+  nie branżowy typ ani pole nadpisywane przy przeniesieniu. `organization_parents` używa wzorca E1.5,
+  z kluczem relacji `organization_id`: najwyżej jeden otwarty okres rodzica jednostki.
+- Brak relacji oznacza korzeń. Przeniesienie zamyka poprzedni okres i otwiera nowy; odłączenie
+  zamyka okres. Poddrzewo pozostaje przy przenoszonej jednostce. Okresy są półotwarte, z precyzją
+  mikrosekund. Historia struktury nie oznacza historycznych nazw organizacji — te pozostają w audycie.
+- E3.2 przyjmuje zmiany skuteczne teraz, z wymaganym powodem. Nie oferuje datowania wstecz ani planowania.
+  Ponowienie tej samej relacji jest bezskutkowe. Przenoszona jednostka i docelowy rodzic muszą być aktywni.
+  Archiwizacja E3.1 nie przenosi dzieci ani nie usuwa relacji; historyczny odczyt obejmuje archiwalne rekordy.
+- Jedyny punkt modyfikacji struktury: `MoveOrganization`. Bezpośrednie `startPeriod`, `end` i masowe SQL
+  nie są API struktury, bo omijałyby kontrolę cykli. Zmiany są atomowe z audytem. Odczyt przodków/ potomków
+  jest iteracyjny, bez sztucznego limitu głębokości; potomkowie pobierani poziomami z eager loading.
+- Prostota i bezpieczeństwo: wszystkie przeniesienia blokują najstarszy, nieusuwalny rekord organizacji
+  jako wspólny mutex w MySQL. Następnie odczytują aktualne relacje przez blokujące odczyty (także po
+  wcześniejszym odczycie w transakcji). Chroni to przed cyklami przy równoległych zmianach różnych jednostek.
+  Koszt: serializacja zmian struktury całej platformy i możliwe krótkie oczekiwanie przy zmianie tego rekordu.
+  Przy dużym ruchu można wymienić mechanizm blokady bez zmiany modelu relacji. Transakcje ponawiają deadlock.
+- Hierarchia nie nadaje dostępu ani dziedziczenia ról — to E3.5–E3.7. Brak nowych tras i ekranów w E3.2.
+- Migracja wyłącznie addytywna: istniejące organizacje pozostają korzeniami, nie tworzymy danych demo.
+  Wycofanie kodu zachowuje tabelę historii; `down()` odmawia skasowania niepustej tabeli.
+- Poprawka wzorca E1.5: warunki czasu przekazują do SQL pełne `Y-m-d H:i:s.u`, bo domyślne bindowanie
+  obiektu daty przez połączenie Laravel obcinało mikrosekundy i psuło odczyt/zmiany na granicy okresów.

@@ -5,8 +5,11 @@ namespace Tests\Feature\Domain\Identity;
 use App\Domain\Identity\Actions\AddContact;
 use App\Domain\Identity\Actions\RegisterPerson;
 use App\Domain\Identity\Actions\ResolveAccountPerson;
+use App\Domain\Identity\Actions\ResolvePersonLinkReview;
 use App\Domain\Identity\Enums\ContactChannel;
+use App\Domain\Identity\Enums\PersonLinkReviewStatus;
 use App\Domain\Identity\Models\Person;
+use App\Domain\Identity\Models\PersonLinkReview;
 use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Models\AuditEntry;
 use App\Models\User;
@@ -134,5 +137,60 @@ class AccountPersonLinkTest extends TestCase
 
         $this->assertFalse($account->fresh()->hasVerifiedEmail());
         $this->assertNull($account->fresh()->person_id);
+    }
+
+    public function test_ambiguous_match_opens_one_repair_case_and_reveals_nothing_to_the_holder(): void
+    {
+        $this->personWithEmail('family@example.test', given: 'Maria');
+        $this->personWithEmail('family@example.test', given: 'Jan');
+        $account = User::factory()->unverified()->create(['email' => 'family@example.test']);
+
+        $this->verifyThroughLink($account);
+        $this->app->make(ResolveAccountPerson::class)->handle($account->fresh());
+
+        $review = PersonLinkReview::query()->sole();
+        $this->assertSame(PersonLinkReviewStatus::Open, $review->status);
+        $this->assertCount(2, $review->candidate_person_ids);
+        $this->get('/account')->assertOk()->assertSee('dodatkowa weryfikacja')->assertSee($review->public_id)
+            ->assertDontSee('Maria')->assertDontSee('Jan');
+    }
+
+    public function test_repair_links_the_account_to_the_verified_candidate(): void
+    {
+        $maria = $this->personWithEmail('family@example.test', given: 'Maria');
+        $this->personWithEmail('family@example.test', given: 'Jan');
+        $account = User::factory()->unverified()->create(['email' => 'family@example.test']);
+        $this->verifyThroughLink($account);
+        $review = PersonLinkReview::query()->sole();
+
+        $this->app->make(ResolvePersonLinkReview::class)->handle($review, $maria, 'identity confirmed by operator with ID document');
+
+        $this->assertTrue($account->fresh()->person->is($maria));
+        $this->assertSame(PersonLinkReviewStatus::Resolved, $review->fresh()->status);
+        $this->assertSame($maria->id, $review->fresh()->resolved_person_id);
+        $this->assertNull($account->fresh()->openPersonLinkReview);
+    }
+
+    public function test_repair_can_create_a_new_person_but_never_pick_a_non_candidate(): void
+    {
+        $this->personWithEmail('family@example.test', given: 'Maria');
+        $this->personWithEmail('family@example.test', given: 'Jan');
+        $stranger = $this->personWithEmail('other@example.test', given: 'Obcy');
+        $account = User::factory()->unverified()->create(['given_name' => 'Ewa', 'email' => 'family@example.test']);
+        $this->verifyThroughLink($account);
+        $review = PersonLinkReview::query()->sole();
+        $resolve = $this->app->make(ResolvePersonLinkReview::class);
+
+        try {
+            $resolve->handle($review, $stranger, 'wrong choice');
+            $this->fail('A non-candidate must be refused.');
+        } catch (\LogicException) {
+        }
+        $resolve->handle($review, null, 'none of the candidates is the account holder');
+
+        $this->assertSame('Ewa', $account->fresh()->person->given_name);
+        $this->assertSame(4, Person::query()->count());
+        $this->expectException(\LogicException::class);
+        $resolve->handle($review->fresh(), null, 'second resolution');
     }
 }

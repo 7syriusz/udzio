@@ -13,7 +13,7 @@ class AccountController extends Controller
 {
     public function show(Request $request): View
     {
-        return view('account.show', ['person' => $request->user()->person]);
+        return view('account.show', ['person' => $request->user()->person, 'review' => $request->user()->openPersonLinkReview]);
     }
 
     public function update(Request $request, UpdatePersonDetails $update): RedirectResponse

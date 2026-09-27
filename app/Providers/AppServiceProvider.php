@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Domain\Identity\Auth\AuditedUserProvider;
 use App\Domain\Identity\Listeners\ResolvePersonOfVerifiedAccount;
+use App\Domain\Platform\Database\DestructiveCommandGuard;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
@@ -25,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        DestructiveCommandGuard::apply();
+
         // Z-021: length over composition rules (NIST SP 800-63B).
         Password::defaults(fn () => Password::min(12)->max(255));
 

@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Domain\Identity\Enums\PersonLinkReviewStatus;
 use App\Domain\Identity\Models\Person;
+use App\Domain\Identity\Models\PersonLinkReview;
 use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
@@ -13,6 +15,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -66,6 +69,12 @@ class User extends Authenticatable implements ClassifiesData, MustVerifyEmail
     public function markEmailAsVerified(): bool
     {
         return app(AuditReason::class)->because('account e-mail verified by signed link', fn () => $this->forceFill(['email_verified_at' => $this->freshTimestamp()])->save());
+    }
+
+    /** Open repair procedure when the account could not be linked to exactly one PERSON (Z-022). */
+    public function openPersonLinkReview(): HasOne
+    {
+        return $this->hasOne(PersonLinkReview::class)->where('status', PersonLinkReviewStatus::Open);
     }
 
     /** The PERSON this account gives access to; null until linked (E2.4). */

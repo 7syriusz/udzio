@@ -7,7 +7,9 @@ use App\Domain\Identity\Actions\RegisterPerson;
 use App\Domain\Identity\Actions\RemoveContact;
 use App\Domain\Identity\Actions\RequestContactVerification;
 use App\Domain\Identity\Actions\VerifyContact;
+use App\Domain\Identity\Contracts\ContactCodeSender;
 use App\Domain\Identity\Enums\ContactChannel;
+use App\Domain\Identity\Exceptions\ContactChannelUnavailable;
 use App\Domain\Identity\Exceptions\ContactVerificationFailed;
 use App\Domain\Identity\Models\Contact;
 use App\Domain\Identity\Models\Person;
@@ -210,5 +212,44 @@ class ContactTest extends TestCase
         $entry = AuditEntry::query()->where('action', 'contact.created')->sole();
         $this->assertSame('[REDACTED]', $entry->after_values['value']);
         $this->assertSame('email', $entry->after_values['channel']);
+    }
+
+    public function test_phone_without_an_sms_operator_gets_no_code_and_cannot_become_verified(): void
+    {
+        Notification::fake();
+        $phone = $this->add($this->person(), ContactChannel::Phone, '600100200');
+
+        $this->assertFalse($phone->canBeVerified());
+        try {
+            $this->app->make(RequestContactVerification::class)->handle($phone);
+            $this->fail('Phone verification must be unavailable.');
+        } catch (ContactChannelUnavailable) {
+        }
+        $this->assertSame(0, \DB::table('contact_verifications')->count(), 'Nie powstaje żaden kod.');
+        Notification::assertNothingSent();
+
+        $this->expectException(LogicException::class);
+        $this->app->make(AuditReason::class)->because('direct attempt', fn () => $phone->update(['verified_at' => now()]));
+    }
+
+    public function test_a_configured_provider_makes_the_phone_channel_verifiable(): void
+    {
+        $sender = new class implements ContactCodeSender
+        {
+            public ?string $code = null;
+
+            public function send(Contact $contact, string $code, int $ttlMinutes): void
+            {
+                $this->code = $code;
+            }
+        };
+        $this->app->instance('test.sms-sender', $sender);
+        config(['identity.contacts.senders.phone' => 'test.sms-sender']);
+        $phone = $this->add($this->person(), ContactChannel::Phone, '600100200');
+
+        $this->app->make(RequestContactVerification::class)->handle($phone);
+        $this->app->make(VerifyContact::class)->handle($phone, $sender->code);
+
+        $this->assertTrue($phone->fresh()->isVerified());
     }
 }

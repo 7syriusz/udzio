@@ -5,6 +5,7 @@ namespace Tests\Feature\Domain\Platform\Classification;
 use App\Domain\Platform\Actions\RecordProtectedRead;
 use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Classification\ClassifiedData;
+use App\Domain\Platform\Classification\ErasureMode;
 use App\Domain\Platform\Enums\DataClass;
 use App\Domain\Platform\Models\AuditEntry;
 use App\Models\User;
@@ -27,6 +28,21 @@ class DataClassificationTest extends TestCase
         $this->assertFalse(DataClass::SpecialCategory->policy()->auditValues);
         $this->assertTrue(DataClass::Secret->policy()->auditReads);
         $this->assertTrue(DataClass::SpecialCategory->policy()->auditReads);
+    }
+
+    public function test_every_class_defines_retention_and_erasure(): void
+    {
+        $expected = [
+            'public' => [null, ErasureMode::Keep],
+            'internal' => [null, ErasureMode::Keep],
+            'restricted' => [730, ErasureMode::Anonymize],
+            'special_category' => [365, ErasureMode::Delete],
+            'secret' => [0, ErasureMode::Delete],
+        ];
+        foreach (DataClass::cases() as $class) {
+            $policy = $class->policy();
+            $this->assertSame($expected[$class->value], [$policy->retentionDays, $policy->erasure], $class->value);
+        }
     }
 
     public function test_audit_redacts_by_class_and_keeps_that_the_change_happened(): void

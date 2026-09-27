@@ -151,12 +151,12 @@ Każdy model audytowany implementuje `App\Domain\Platform\Classification\Classif
 Zapis pola bez klasy jest odrzucany (poza kluczem i znacznikami czasu). O skutkach klasy decyduje
 `config/data_classification.php`, nie model:
 
-| Klasa | Wartość w audycie zmian | Audyt odczytu | Eksport |
-|---|---|---|---|
-| PUBLIC, INTERNAL | tak | nie | wartość |
-| RESTRICTED | `[REDACTED]` | nie | wartość |
-| SPECIAL CATEGORY | `[REDACTED]` | tak | `[REDACTED]` |
-| SECRET | `[REDACTED]` | tak | pominięte |
+| Klasa | Wartość w audycie zmian | Audyt odczytu | Eksport | Retencja | Po retencji |
+|---|---|---|---|---|---|
+| PUBLIC, INTERNAL | tak | nie | wartość | dopóki istnieje rekord | zostaje |
+| RESTRICTED | `[REDACTED]` | nie | wartość | 730 dni | anonimizacja |
+| SPECIAL CATEGORY | `[REDACTED]` | tak | `[REDACTED]` | 365 dni | usunięcie |
+| SECRET | `[REDACTED]` | tak | pominięte | do końca celu | usunięcie |
 
 Eksport przepuszcza wartości przez `ClassifiedData::forExport($model, $values)`. Po wyświetleniu pól
 wywołaj `RecordProtectedRead::forModel($model, $fields, $cel)` — zapisze odczyt, jeśli klasa tego wymaga.
@@ -194,11 +194,18 @@ publiczne identyfikatory. Szczegóły: Z-018.
 | Pojęcie A5 | Kod | Uwagi |
 |---|---|---|
 | PERSON | `Identity\Models\Person`, `RegisterPerson`, `UpdatePersonDetails` | globalna, publiczny ULID; bez automatycznego dopasowania (Z-019) |
-| CONTACT | `Contact`, `AddContact`, `RemoveContact`, `RequestContactVerification`, `VerifyContact` | kanał należący do osoby; nie łączy osób (Z-020) |
-| ACCOUNT | `App\Models\User` + Fortify, `LinkAccountToPerson`, `ResolveAccountPerson` | konto dołącza do PERSON po weryfikacji e-maila (Z-021, Z-022) |
-| Działanie w imieniu | `Representation`, `GrantRepresentation`, `ChangeRepresentationScopes`, `EndRepresentation`, `ActOnBehalf` | relacja w czasie z zakresami (Z-025) |
+| CONTACT | `Contact`, `AddContact`, `RemoveContact`, `RequestContactVerification`, `VerifyContact`, kontrakt `ContactCodeSender` | kanał należący do osoby; nie łączy osób; kanał bez dostawcy nie jest weryfikowalny (Z-020) |
+| ACCOUNT | `App\Models\User` + Fortify, `LinkAccountToPerson`, `ResolveAccountPerson`, `PersonLinkReview`, `ResolvePersonLinkReview` | konto dołącza do PERSON po weryfikacji e-maila; niejednoznaczność → procedura naprawcza (Z-021, Z-022) |
+| REPRESENTATION | `Representation`, `RepresentationRules`, `GrantRepresentation`, `ChangeRepresentationScopes`, `EndRepresentation`, `ActOnBehalf` | relacja w czasie z zakresem, sposobem ustanowienia, podstawą i ACTOR-em; bez typu „rodzic–dziecko” (Z-025) |
 
 Operacja dotycząca innej osoby: `ActOnBehalf::handle($account, $subject, RepresentationScope::…, fn () => …)`.
 Zasoby cudzych osób na ekranach: `AccessDenied(...)->hideAsNotFound()`. Zapisy konta wykonywane przez Fortify
 i framework mają jawne powody (audytowane podklasy akcji, `AuditedUserProvider`). Middleware `mfa` wymaga
 potwierdzonego MFA — dla tras administracyjnych od E3.
+
+## 15. Baza danych: brak danych przykładowych i ochrona przed skasowaniem
+
+`DatabaseSeeder` jest pusty — nie dodawaj seederów demonstracyjnych. Polecenia kasujące bazę
+(`migrate:fresh`, `migrate:refresh`, `migrate:reset`, `migrate:rollback`, `db:wipe`) działają tylko lokalnie
+lub w testach i tylko na bazach `*_test` albo jawnie wskazanej w `DB_ALLOW_DESTRUCTIVE_ON`
+(`DestructiveCommandGuard`, Z-027).

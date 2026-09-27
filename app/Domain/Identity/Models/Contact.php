@@ -3,6 +3,7 @@
 namespace App\Domain\Identity\Models;
 
 use App\Domain\Identity\Enums\ContactChannel;
+use App\Domain\Identity\Verification\ContactCodeSenders;
 use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
 use App\Domain\Platform\Enums\DataClass;
@@ -33,6 +34,12 @@ class Contact extends Model implements ClassifiesData
             }
             if ($contact->getOriginal('removed_at') !== null) {
                 throw new LogicException('A removed contact cannot change.');
+            }
+        });
+
+        static::saving(function (self $contact): void {
+            if ($contact->isDirty('verified_at') && $contact->verified_at !== null && ! ContactCodeSenders::supports($contact->channel)) {
+                throw new LogicException("A {$contact->channel->value} contact cannot be verified: no delivery provider is configured.");
             }
         });
     }
@@ -70,6 +77,12 @@ class Contact extends Model implements ClassifiesData
     public function scopeVerified(Builder $query): Builder
     {
         return $query->whereNotNull('verified_at');
+    }
+
+    /** Whether this contact's channel has a delivery provider and can be verified at all (Z-020). */
+    public function canBeVerified(): bool
+    {
+        return ContactCodeSenders::supports($this->channel);
     }
 
     public function isVerified(): bool

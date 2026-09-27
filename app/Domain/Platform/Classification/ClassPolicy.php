@@ -16,6 +16,9 @@ final readonly class ClassPolicy
         /** Reading the field must be recorded as a protected read. */
         public bool $auditReads,
         public ExportMode $export,
+        /** Days the value is kept after the end of its purpose (e.g. the last relation); null = as long as the record exists. */
+        public ?int $retentionDays,
+        public ErasureMode $erasure,
     ) {}
 
     public static function for(DataClass $class): self
@@ -29,6 +32,8 @@ final readonly class ClassPolicy
             (bool) $policy['audit_values'],
             (bool) $policy['audit_reads'],
             ExportMode::from($policy['export']),
+            $policy['retention_days'] === null ? null : (int) $policy['retention_days'],
+            ErasureMode::from($policy['erasure']),
         );
     }
 }

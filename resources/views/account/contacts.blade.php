@@ -13,6 +13,8 @@
             <td>
                 @if ($contact->isVerified())
                     potwierdzony
+                @elseif (! $contact->canBeVerified())
+                    niepotwierdzony (potwierdzanie tego kanału nie jest jeszcze dostępne)
                 @else
                     niepotwierdzony
                     <form method="POST" action="{{ route('account.contacts.verification.send', $contact) }}" class="inline">

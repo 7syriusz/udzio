@@ -525,3 +525,35 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - **Komunikat dla użytkownika:** ogólne 403 „This action is unauthorized.” (bez nazw ról, przypisań, zakresów
   i przyczyny); pełna podstawa odmowy jest tylko w audycie.
 
+### Z-034a — Izolacja danych po uwagach do E3.6 (E3.7a, 2026-09-28)
+
+- **Dane ról oddzielnie od danych operacyjnych** (rozróżnienie z Z-035): przypisania ról widzi konto tylko
+  dla ról ze swojego katalogu nadawania i tylko w jednostkach, w których może je nadawać, oraz własne
+  przypisania. `members.view` ani `roles.manage` nie dają wglądu w cudze przypisania. Definicje ról widzi:
+  posiadacz `roles.manage` (wszystkie role tych jednostek), posiadacz katalogu (role z katalogu) i posiadacz roli.
+  Zbiór liczy `AccessDecider::roleGrantCatalog` według tych samych reguł co decyzja o nadaniu (test zgodności).
+- **Przypisania oczekujące** (E3.6a) nie dają widoczności; zatwierdzający widzi je jako wnioski.
+- **Odmowy odczytu przez centralny mechanizm:** `DataVisibility` zapisuje odmowę przez
+  `AccessDecider::recordDenial` — jeden wpis na operację i przedmiot, z korelacją operacji. Odpowiedź dla
+  użytkownika: ogólne 404, bez nazw ról, jednostek ani przyczyny.
+- **Odtwarzalność:** każda metoda `DataVisibility` przyjmuje chwilę — widoczność z przeszłości liczona jest
+  według ówczesnych przypisań, wersji ról i struktury.
+
+### Wątpliwości do rozstrzygnięcia (E3.7, do Jakuba)
+
+1. Czy prawo nadawania ról (`roles.assign`) ma dawać minimalny wgląd w kandydatów (konta/osoby w zarządzanym
+   zakresie), aby dało się wybrać, komu nadać rolę? Obecnie **nie** — potrzebne jest osobne `members.view`.
+2. Czy zarządzający rolami ma widzieć, kto w jego zakresie ma role **spoza** jego katalogu (np. kto jest
+   administratorem)? Obecnie **nie** (uwaga 7 do E3.6).
+3. Czy administrator ma widzieć osoby, które **były** członkami jego jednostek (historia)? Obecnie **tak**,
+   bez limitu czasu — ewentualny limit wiązałby się z retencją (Z-017).
+4. Czy widoczność osób reprezentowanych (`profile.view`) i własnej osoby jest zgodna z zasadą „członkostwo
+   i reprezentacja same nie nadają dostępu”? Przyjęto, że reprezentacja daje wgląd **tylko** w dane osoby
+   reprezentowanej (zakres z E2.7), nigdy w dane organizacji.
+5. Czy po archiwizacji jednostki jej historia (członkostwa, przypisania) ma pozostać widoczna dla administratora
+   jednostki nadrzędnej? Obecnie jednostka zarchiwizowana **wypada** z widoczności razem z historią.
+6. Czy udane odczyty list mają być audytowane? Obecnie **nie** (tak jak sprawdzenia Gate); audytowane są
+   odmowy i odczyty pól klas SPECIAL CATEGORY/SECRET (E1.7).
+7. Czy procesy techniczne (raporty, eksporty w kolejce) mają mieć widoczność przez `SystemAuthority`?
+   Obecnie `DataVisibility` wymaga konta; zostanie to ustalone przy raportach (E10).
+

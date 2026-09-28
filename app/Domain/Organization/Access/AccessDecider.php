@@ -276,25 +276,37 @@ final class AccessDecider
     private function record(AccessDecision $decision, Permission $permission, Organization $target, string $subjectType, ?string $subjectId): AccessDecision
     {
         $subjectId ??= $target->public_id;
-        // One final decision entry per protected operation, however many checks it performs.
-        $firstTime = $this->correlation->firstTime(implode('|', [$decision->allowed ? 'granted' : 'denied', $permission->value, $target->public_id, $subjectType, $subjectId]));
         if ($decision->allowed) {
-            if ($firstTime) {
+            // One final decision entry per protected operation, however many checks it performs.
+            if ($this->correlation->firstTime(implode('|', ['granted', $permission->value, $target->public_id, $subjectType, $subjectId]))) {
                 $this->audit->handle('access.granted', $subjectType, $subjectId, organizationId: $target->public_id, after: $decision->basis);
             }
 
             return $decision;
         }
+
+        $this->recordDenial($subjectType, $subjectId, $target->public_id, $decision->basis);
+
+        throw (new AccessDenied($subjectType, $subjectId, $target->public_id, $permission->value))->alreadyRecorded();
+    }
+
+    /**
+     * The one way a denial is written (decisions here and reads refused by DataVisibility): once per
+     * operation and subject, on the independent audit connection; a failed write never changes the denial.
+     *
+     * @param  array<string, mixed>  $basis
+     */
+    public function recordDenial(string $subjectType, string $subjectId, ?string $organizationId, array $basis): void
+    {
+        if (! $this->correlation->firstTime(implode('|', ['denied', $basis['permission'] ?? $basis['ability'] ?? '', $subjectType, $subjectId]))) {
+            return;
+        }
         try {
-            if ($firstTime) {
-                $this->denials->handle($subjectType, $subjectId, $target->public_id, $decision->basis);
-            }
+            $this->denials->handle($subjectType, $subjectId, $organizationId, $basis);
         } catch (Throwable $failure) {
             // Same rule as E1.4: a failed audit write never turns a denial into something else.
             Log::critical('Access denial could not be audited.', ['exception' => $failure::class, 'message' => $failure->getMessage()]);
         }
-
-        throw (new AccessDenied($subjectType, $subjectId, $target->public_id, $permission->value))->alreadyRecorded();
     }
 
     /**
@@ -319,6 +331,35 @@ final class AccessDecider
         return Organization::query()->whereKey($ids)->get()
             ->filter(fn (Organization $organization) => $organization->isActiveAt($at))
             ->modelKeys();
+    }
+
+    /**
+     * Role-granting catalog the account can use at the moment (E3.6a): for each role, the units where the
+     * account may assign or revoke it — the same rules as decideRoleGrant (without the per-operation checks
+     * of self-assignment, duration and escalation). Used to limit what role data a manager may see (E3.7a).
+     *
+     * @return array<string, list<int>> role public ID => internal IDs of units
+     */
+    public function roleGrantCatalog(User $account, ?DateTimeInterface $at = null): array
+    {
+        $at = CarbonImmutable::instance($at ?? CarbonImmutable::now('UTC'))->utc();
+        $catalog = [];
+        $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($at)
+            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get();
+        foreach ($assignments as $assignment) {
+            [$outcome, $version] = $this->assignmentOutcome($assignment, Permission::RolesAssign, $at);
+            if ($outcome !== 'applicable') {
+                continue;
+            }
+            foreach ($version->content['grant_rules'] ?? [] as $rule) {
+                $units = $rule['include_descendants'] ? $assignment->coveredOrganizationIds($at) : [$assignment->scope_organization_id];
+                $catalog[$rule['role']] = [...($catalog[$rule['role']] ?? []), ...$units];
+            }
+        }
+        $active = Organization::query()->whereKey(array_merge([], ...array_values($catalog)))->get()
+            ->filter(fn (Organization $organization) => $organization->isActiveAt($at))->modelKeys();
+
+        return array_map(fn (array $units) => array_values(array_intersect(array_unique($units), $active)), $catalog);
     }
 
     /**

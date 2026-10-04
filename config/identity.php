@@ -32,5 +32,14 @@ return [
         // SCOPE a representation may grant here. Narrow it per configuration; nothing outside is grantable.
         'grantable_scopes' => ['profile.view', 'profile.update', 'contacts.view', 'contacts.manage',
             'registrations.manage', 'payments.manage', 'consents.manage'],
+        // PERSON fields a representative may read for each kind of action (E3.7b, Z-037): only what the action
+        // needs. Fields of class SPECIAL CATEGORY or SECRET are never shown through a representation, even
+        // when listed here. Later stages add their scopes (registrations E5, payments E8, consents E9).
+        'visible_fields' => [
+            'profile.view' => ['public_id', 'given_name', 'family_name', 'birth_date'],
+            'profile.update' => ['public_id', 'given_name', 'family_name', 'birth_date'],
+            'contacts.view' => ['public_id', 'given_name', 'family_name'],
+            'contacts.manage' => ['public_id', 'given_name', 'family_name'],
+        ],
     ],
 ];

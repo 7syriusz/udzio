@@ -21,4 +21,9 @@ return [
         'request_expired' => 'Wnioskowany termin już minął; potrzebne nowe nadanie.',
     ],
 
+    'candidates' => [
+        'query_too_short' => 'Wpisz co najmniej :min znaki, aby wyszukać osobę.',
+        'too_many_searches' => 'Zbyt wiele wyszukiwań. Spróbuj ponownie za chwilę.',
+    ],
+
 ];

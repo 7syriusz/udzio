@@ -31,6 +31,7 @@ use DateTimeInterface;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
+use Tests\Fixtures\AnyScopeTestPurpose;
 use Tests\TestCase;
 
 class AccessDecisionTest extends TestCase
@@ -69,7 +70,7 @@ class AccessDecisionTest extends TestCase
 
     private function system(\Closure $operation): mixed
     {
-        return $this->app->make(SystemAuthority::class)->run('test setup', $operation);
+        return $this->app->make(SystemAuthority::class)->run(new AnyScopeTestPurpose, $operation);
     }
 
     private function grant(User $account, AccessRole $role, Organization $scope, ScopeInheritance $inheritance = ScopeInheritance::UnitOnly, ?DateTimeInterface $until = null): RoleAssignment

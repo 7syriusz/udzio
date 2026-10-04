@@ -12,14 +12,34 @@ return [
     ],
     'structure' => [
         'manage' => 'zarządzanie strukturą jednostek',
+        'history' => [
+            'view' => 'podgląd historii zarchiwizowanych jednostek',
+        ],
     ],
     'members' => [
         'view' => 'podgląd członków',
         'manage' => 'zarządzanie członkostwem',
+        'history' => [
+            'view' => 'podgląd byłych członków i historii członkostwa',
+        ],
     ],
     'roles' => [
         'manage' => 'definiowanie ról',
         'assign' => 'nadawanie ról',
+        'audit' => [
+            'view' => 'kontrola ról (wszystkie przypisania w zakresie)',
+        ],
+    ],
+    'people' => [
+        'contacts' => [
+            'view' => 'pełne dane kontaktowe osób',
+        ],
+        'protected' => [
+            'view' => 'dane szczególnie chronione osób',
+        ],
+    ],
+    'data' => [
+        'export' => 'eksporty i masowe odczyty danych',
     ],
     'person_links' => [
         'resolve' => 'rozstrzyganie połączeń kont z osobami',

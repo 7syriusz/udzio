@@ -25,6 +25,7 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Route;
+use Tests\Fixtures\AnyScopeTestPurpose;
 use Tests\TestCase;
 
 /** E3.7a: data isolation revised after the E3.6 review — role data follows the role-granting catalog. */
@@ -67,7 +68,7 @@ class RoleDataVisibilityTest extends TestCase
 
     private function system(Closure $operation): mixed
     {
-        return $this->app->make(SystemAuthority::class)->run('test setup', $operation);
+        return $this->app->make(SystemAuthority::class)->run(new AnyScopeTestPurpose, $operation);
     }
 
     private function grant(User $account, AccessRole $role, Organization $scope, ScopeInheritance $inheritance = ScopeInheritance::UnitOnly): RoleAssignment
@@ -159,6 +160,9 @@ class RoleDataVisibilityTest extends TestCase
     {
         $admin = User::factory()->create();
         $this->grant($admin, $this->administrator, $this->company, ScopeInheritance::UnitAndDescendants);
+        // Since E3.7b a past moment needs today's right to that history.
+        $history = $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->company, 'Historia', ['structure.history.view'], 'Rola'));
+        $this->grant($admin, $history, $this->company, ScopeInheritance::UnitAndDescendants);
         $before = now()->addSecond()->toImmutable();
         $this->travel(1)->minute();
 

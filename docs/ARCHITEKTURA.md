@@ -268,7 +268,7 @@ To jedyne miejsce decyzji — nie sprawdzaj ról ręcznie w kontrolerach. Ekrany
 (ten sam decydent, bez zapisu). Nadawanie, zatwierdzanie i odwoływanie ról: `authorizeRoleGrant` według
 katalogu nadawania roli zarządczej (Z-035); definicje ról: `authorizeRoleDefinition`. Operację chronioną
 obejmij `OperationCorrelation::within(...)` — jeden wpis decyzji i wspólna korelacja. Proces techniczny bez konta:
-`SystemAuthority::run($powód, fn () => ...)`. Historyczna decyzja: `$access->decide($konto, $uprawnienie,
+`SystemAuthority::run($cel, fn () => ...)` z zadeklarowanym `SystemPurpose` (E3.7b). Historyczna decyzja: `$access->decide($konto, $uprawnienie,
 $jednostka, $chwila)`. Szczegóły: Z-033.
 
 ## 22. Izolacja danych (E3.7)
@@ -278,6 +278,13 @@ Listy i odczyty danych organizacji buduj przez `DataVisibility` (`organizations`
 chwilą) albo — w nowych modułach — `whereIn('organization_id',
 $access->grantedOrganizationIds($konto, Permission::…))`. Nigdy nie filtruj zakresu ręcznie. Rekord spoza
 zakresu: 404 z audytem odmowy (`findX` robi to sam). Szczegóły: Z-034.
+
+Od E3.7b: historia (data z przeszłości, byli członkowie, jednostki zarchiwizowane) tylko przez `DataVisibility`
+(`membershipHistory`, metody z chwilą) — najpierw dzisiejsze prawo do historii, potem stan z tamtej chwili;
+eksport przez `DataVisibility::export`, duże listy przez `fetch`, dane szczególnie chronione przez
+`readProtected` (wszystkie audytowane). Wybór osoby do roli: `RoleCandidateSearch`, nie lista członków.
+Proces techniczny: `SystemAuthority::run(new SystemPurpose($cel, $podstawa, [$uprawnienia], [$jednostki],
+onBehalfOf: $konto), fn () => ...)`. Szczegóły: Z-037.
 
 ## 23. Języki i komunikaty (E3.6b)
 

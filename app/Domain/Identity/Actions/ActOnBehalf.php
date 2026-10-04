@@ -6,6 +6,7 @@ use App\Domain\Identity\Enums\RepresentationScope;
 use App\Domain\Identity\Models\Person;
 use App\Domain\Identity\Models\Representation;
 use App\Domain\Platform\Actions\RecordAudit;
+use App\Domain\Platform\Enums\DataClass;
 use App\Domain\Platform\Exceptions\AccessDenied;
 use App\Models\User;
 use Closure;
@@ -44,6 +45,28 @@ final class ActOnBehalf
 
             return $operation();
         });
+    }
+
+    /**
+     * PERSON data a representative may see for the given kind of action (E3.7b): the fields configured for
+     * that scope (`identity.representation.visible_fields`), never SPECIAL CATEGORY or SECRET ones. Nothing
+     * about organizations or other people. An ended representation gives nothing; the history of what was
+     * done under it stays in the audit.
+     *
+     * @return array<string, mixed>
+     */
+    public function visibleData(User $account, Person $subject, RepresentationScope $scope): array
+    {
+        if (! $this->allows($account, $subject, $scope)) {
+            throw (new AccessDenied('person', $subject->public_id, null, 'representation.'.$scope->value))->hideAsNotFound();
+        }
+        $classes = $subject->dataClassification();
+        $fields = array_filter(
+            config('identity.representation.visible_fields')[$scope->value] ?? [],
+            fn (string $field) => ! in_array($classes[$field] ?? DataClass::Secret, [DataClass::SpecialCategory, DataClass::Secret], true),
+        );
+
+        return $subject->only(array_values($fields));
     }
 
     public function allows(User $account, Person $subject, RepresentationScope $scope): bool

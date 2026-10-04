@@ -25,6 +25,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Route;
+use Tests\Fixtures\AnyScopeTestPurpose;
 use Tests\TestCase;
 
 class DataVisibilityTest extends TestCase
@@ -67,7 +68,7 @@ class DataVisibilityTest extends TestCase
     private function administrator(Organization $scope, ScopeInheritance $inheritance): User
     {
         $account = User::factory()->create();
-        $this->app->make(SystemAuthority::class)->run('test setup', function () use ($account, $scope, $inheritance): void {
+        $this->app->make(SystemAuthority::class)->run(new AnyScopeTestPurpose, function () use ($account, $scope, $inheritance): void {
             $role = $this->app->make(CreateAccessRole::class)->handle($scope, 'Administrator '.$scope->id.' '.$account->id, ['organization.view', 'members.view'], 'Rola');
             $this->app->make(AssignRole::class)->handle($account, $role, $scope, $inheritance, null, 'Nadanie');
         });

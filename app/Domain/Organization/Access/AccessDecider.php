@@ -18,6 +18,7 @@ use App\Domain\Platform\Models\DefinitionVersion;
 use App\Domain\Platform\OperationCorrelation;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Closure;
 use DateTimeInterface;
 use Illuminate\Support\Facades\Log;
 use LogicException;
@@ -190,7 +191,8 @@ final class AccessDecider
      */
     public function authorizeRoleGrant(string $operation, AccessRole $role, Organization $scope, ?DateTimeInterface $until, ?int $granteeAccountId, ?string $requestedByAccountId = null, ?string $subjectId = null): AccessDecision
     {
-        $systemDecision = $this->systemDecision(Permission::RolesAssign, $scope);
+        $systemDecision = $this->systemDecision(Permission::RolesAssign, $scope,
+            fn (User $orderedBy) => $this->decideRoleGrant($orderedBy, $operation, $role, $scope, $until, $granteeAccountId, $requestedByAccountId));
         if ($systemDecision !== null) {
             return $this->record($systemDecision, Permission::RolesAssign, $scope, 'role_assignment', $subjectId);
         }
@@ -244,21 +246,41 @@ final class AccessDecider
         return $exceeding;
     }
 
-    private function systemDecision(Permission $permission, Organization $target): ?AccessDecision
+    /**
+     * Decision for a technical process under SystemAuthority (E3.7b): only within its declared purpose —
+     * permission, scope, and the current permission of the account that ordered it. Null when the actor is
+     * not a process with a purpose.
+     *
+     * @param  (Closure(User): AccessDecision)|null  $orderedByDecision  how to decide for the ordering account
+     */
+    private function systemDecision(Permission $permission, Organization $target, ?Closure $orderedByDecision = null): ?AccessDecision
     {
-        $systemReason = $this->system->activeReason();
-        if ($this->context->current()->type === ActorType::Account || $systemReason === null) {
+        $purpose = $this->system->activePurpose();
+        if ($this->context->current()->type === ActorType::Account || $purpose === null) {
             return null;
         }
-
-        return new AccessDecision(true, AccessDecision::REASON_SYSTEM_AUTHORITY, [
+        $now = CarbonImmutable::now('UTC');
+        $target = Organization::query()->findOrFail($target->getKey());
+        $basis = [
             'permission' => $permission->value,
-            'at' => CarbonImmutable::now('UTC')->format('Y-m-d H:i:s.u'),
+            'at' => $now->format('Y-m-d H:i:s.u'),
             'target_organization' => $target->public_id,
-            'decision' => 'allowed',
-            'reason' => AccessDecision::REASON_SYSTEM_AUTHORITY,
-            'system_reason' => $systemReason,
-        ]);
+            'system_purpose' => $purpose->describe(),
+        ];
+        if (! $purpose->allows($permission)) {
+            return $this->deny('system_purpose_permission_missing', $basis);
+        }
+        if (! $purpose->covers($target, $now)) {
+            return $this->deny('system_purpose_scope_not_covering', $basis);
+        }
+        if ($purpose->onBehalfOf !== null) {
+            $ordered = $orderedByDecision !== null ? $orderedByDecision($purpose->onBehalfOf) : $this->decide($purpose->onBehalfOf, $permission, $target, $now);
+            if ($ordered->denied()) {
+                return $this->deny('ordering_account_not_permitted', [...$basis, 'ordering_account_decision' => $ordered->basis]);
+            }
+        }
+
+        return new AccessDecision(true, AccessDecision::REASON_SYSTEM_AUTHORITY, [...$basis, 'decision' => 'allowed', 'reason' => AccessDecision::REASON_SYSTEM_AUTHORITY]);
     }
 
     private function decideForActor(Permission $permission, Organization $target): AccessDecision
@@ -331,6 +353,45 @@ final class AccessDecider
         return Organization::query()->whereKey($ids)->get()
             ->filter(fn (Organization $organization) => $organization->isActiveAt($at))
             ->modelKeys();
+    }
+
+    /**
+     * Units whose history the account may view with `$permission` (E3.7b). Only assignments active NOW count —
+     * a role held in the past gives nothing today. Each such assignment covers, for a past moment, the units
+     * that were under its scope unit at that moment (so a later move does not rewrite where a unit was); for
+     * the present, the units it covers today plus archived units that belonged to it when they were archived.
+     * This is the user's right to view history, separate from reconstructing a past decision (decide()).
+     *
+     * @return list<int>
+     */
+    public function historyOrganizationIds(User $account, Permission $permission, ?DateTimeInterface $at = null): array
+    {
+        $now = CarbonImmutable::now('UTC');
+        $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($now)
+            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get()
+            ->filter(fn (RoleAssignment $assignment) => $this->assignmentOutcome($assignment, $permission, $now)[0] === 'applicable');
+        if ($assignments->isEmpty()) {
+            return [];
+        }
+        if ($at !== null) {
+            $at = CarbonImmutable::instance($at)->utc();
+
+            return array_values(array_unique(array_merge(...$assignments->map(fn (RoleAssignment $assignment) => $assignment->coveredOrganizationIds($at))->values()->all())));
+        }
+        $ids = $this->grantedOrganizationIds($account, $permission, $now);
+        foreach (Organization::query()->whereNotNull('archived_at')->whereKeyNot($ids)->get() as $archived) {
+            $lastActive = $archived->archived_at->subMicrosecond();
+            foreach ($assignments as $assignment) {
+                $path = $this->structurePath($archived, $assignment->scopeOrganization, $lastActive);
+                if ($path === [] || ($path !== null && $assignment->scope_inheritance === ScopeInheritance::UnitAndDescendants)) {
+                    $ids[] = $archived->id;
+
+                    break;
+                }
+            }
+        }
+
+        return $ids;
     }
 
     /**

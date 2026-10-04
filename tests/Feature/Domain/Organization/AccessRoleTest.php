@@ -18,6 +18,7 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use LogicException;
+use Tests\Fixtures\AnyScopeTestPurpose;
 use Tests\TestCase;
 
 class AccessRoleTest extends TestCase
@@ -28,7 +29,7 @@ class AccessRoleTest extends TestCase
     {
         parent::setUp();
         // Role actions are authorized centrally (E3.6); these tests exercise the actions themselves.
-        $this->app->make(SystemAuthority::class)->enter('test of role actions');
+        $this->app->make(SystemAuthority::class)->enter(new AnyScopeTestPurpose('test of role actions'));
     }
 
     private function create(Organization $organization, string $name = 'Sekretariat', array $permissions = ['members.view', 'members.manage']): AccessRole
@@ -42,8 +43,8 @@ class AccessRoleTest extends TestCase
 
         $this->assertSame(count($values), count(array_unique($values)));
         foreach (Permission::cases() as $permission) {
-            $this->assertMatchesRegularExpression('/^[a-z_]+\.[a-z_]+$/', $permission->value);
-            $this->assertNotSame('', $permission->label());
+            $this->assertMatchesRegularExpression('/^[a-z_]+(\.[a-z_]+)+$/', $permission->value);
+            $this->assertNotSame('permissions.'.$permission->value, $permission->label(), 'Każde uprawnienie ma polską nazwę (E3.6b).');
         }
     }
 

@@ -320,6 +320,14 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   `AccessDenied` (audyt E1.4); działanie audytowane jako `person.acted_on_behalf`: ACTOR = konto
   reprezentanta, SUBJECT = osoba reprezentowana (A5-03). Zmiana zakresu = nowy okres z własnym sposobem
   i podstawą; zakończenie odbiera dostęp.
+- **Zasady dostępu przez reprezentację (dopisane w E3.7b, decyzja Jakuba 2026-10-05):**
+  - reprezentacja pozwala działać w imieniu **konkretnej** osoby;
+  - udostępnia tylko dane potrzebne do wykonywanej czynności — pola według zakresu czynności
+    (`identity.representation.visible_fields`, `ActOnBehalf::visibleData`), nigdy pola klasy SPECIAL CATEGORY
+    ani SECRET; reprezentacja nie odsłania automatycznie wszystkich danych osoby;
+  - nie daje dostępu do organizacji, list członków ani danych innych osób (np. innych uczestników);
+  - zakończenie reprezentacji odbiera bieżący dostęp (także przy podaniu daty z przeszłości), ale nie usuwa
+    historii wcześniej wykonanych działań (`person.acted_on_behalf` zostaje w audycie).
 
 ## Z-026 — Ekrany konta (E2.8, funkcjonalne, 2026-09-26)
 
@@ -540,6 +548,80 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - **Odtwarzalność:** każda metoda `DataVisibility` przyjmuje chwilę — widoczność z przeszłości liczona jest
   według ówczesnych przypisań, wersji ról i struktury.
 
+### Rozstrzygnięcia (Jakub, 2026-10-05; wdrożone w E3.7b — szczegóły i nazwy techniczne: Z-037)
+
+1. **Wybór kandydata do roli:** prawo nadawania roli daje ograniczone wyszukiwanie kandydata (imię i nazwisko,
+   częściowo ukryty e-mail, czy konto aktywne, czy osoba jest we wskazanej jednostce) — nie pełne `members.view`.
+   Pełny e-mail tylko z osobnym uprawnieniem. Wyszukiwanie nie przegląda całej bazy kont i nie potwierdza,
+   czy dowolny adres ma konto w UDZIO.
+2. **Role spoza katalogu:** niewidoczne dla zarządzającego rolami; wyjątek — osobne uprawnienie do kontroli
+   lub audytu ról.
+3. **Byli członkowie:** tylko z osobnym uprawnieniem do historii członkostwa, przez okres wynikający z polityki
+   przechowywania (do ustalenia). Bez automatycznego usuwania; bezterminowe przechowywanie **nie** jest zasadą
+   docelową.
+4. **Reprezentacja:** dostęp do danych reprezentowanej osoby w zakresie koniecznym do czynności, zależnie od
+   rodzaju czynności i klasy danych; bez dostępu do organizacji i jej członków.
+5. **Zarchiwizowana jednostka:** jej historia pozostaje dostępna administratorowi jednostki nadrzędnej, jeśli
+   ma aktualne uprawnienie do historii, jednostka należała do jego zakresu, a dane nie zostały usunięte zgodnie
+   z polityką przechowywania. Archiwizacja nie usuwa historii ani audytu; przeniesienie nie zmienia faktu,
+   gdzie jednostka była w danym momencie.
+6. **Audyt odczytów:** obowiązkowo odmowy, odczyty danych szczególnie chronionych, eksporty, raporty z danymi
+   osobowymi, masowe odczyty, dostęp administracyjny i awaryjny, odczyty przez `SystemAuthority`; zwykłe
+   dozwolone wyświetlenie standardowej listy — bez wpisu.
+7. **`SystemAuthority`:** tylko w określonym celu i zakresie, nigdy ogólny dostęp. Eksport zlecony przez
+   użytkownika działa w jego aktualnych uprawnieniach; raport cykliczny przy każdym wykonaniu sprawdza je
+   ponownie i bez nich nie powstaje; proces techniczny nie rozszerza zakresu ponad zlecającego; samodzielny
+   proces systemowy wymaga zdefiniowanego celu, zakresu, podstawy i pełnego audytu. Szczegóły raportów — E10.
+- **Historia a obecne uprawnienia:** obliczenie widoczności dla dowolnej chwili służy odtwarzaniu i audytowi,
+  nie omijaniu uprawnień. Najpierw sprawdzane jest dzisiejsze prawo do danego rodzaju historii, dopiero potem
+  stan wybranej chwili; dawna rola nie daje dziś dostępu.
+- **Wniosek oczekujący:** nie daje przyszłemu posiadaczowi żadnych uprawnień; zatwierdzający widzi tylko:
+  kogo dotyczy, jakiej roli, zakres i okres, kto i kiedy złożył, powód — bez dostępu do innych danych osoby.
+
+## Z-035 — Katalog nadawania ról (E3.6a, 2026-09-28, decyzja Krzysztofa)
+
+- **Rozdzielenie:** uprawnienie do wykonywania czynności (np. `audit.view`) to co innego niż uprawnienie do
+  nadawania i odwoływania ról. Administrator może nadać rolę z uprawnieniami, których sam nie ma
+  (np. pracownik kadr nadaje rolę „księgowy”).
+- **Katalog w roli zarządczej:** rola z `roles.assign` ma `grant_rules` — listę reguł:
+  - `role` — którą rolę wolno nadawać i odwoływać (tylko aktywne role tej organizacji lub jej jednostek);
+  - `include_descendants` — czy także w jednostkach pod jednostką zakresu administratora;
+  - `max_days` — maksymalny okres nadania w dniach (wtedy termin jest obowiązkowy);
+  - `requires_approval` — czy nadanie czeka na zatwierdzenie.
+  Katalog jest częścią wersjonowanej definicji roli (E1.6), więc decyzję z przeszłości można odtworzyć.
+- **Gdzie wolno działać:** wyznacza to przypisanie roli zarządczej administratora (jednostka i jej polityka
+  `unit_only` / `unit_and_descendants`) oraz reguła `include_descendants`.
+- **Zatwierdzanie:** nadanie z regułą `requires_approval` tworzy przypisanie `pending` (nic nie daje).
+  Zatwierdza inne konto uprawnione do nadania tej roli w tym zakresie — nigdy wnioskujący ani obdarowany.
+  Odrzucenie = odwołanie oczekującego przypisania. Okres aktywny zaczyna się w chwili zatwierdzenia.
+- **Zabezpieczenia (niekonfigurowalne):** zakaz samonadania; zakaz zatwierdzenia własnego wniosku; zakaz roli
+  spoza katalogu; zakaz działania poza zarządzanym zakresem; zakaz pośredniego zwiększania własnych
+  uprawnień: (a) nie można nadać komuś roli z większą władzą nadawania niż własna (`roles.assign` /
+  `roles.manage`, których się nie ma, albo pozycje katalogu spoza własnego katalogu), (b) nie można zmieniać
+  definicji roli, którą samemu się ma. Znane ograniczenie: zmowa dwóch administratorów (nadają sobie nawzajem
+  role z katalogu) — łagodzi ją reguła `requires_approval`.
+- **Jedna decyzja na operację:** każda operacja chroniona (nadanie, zatwierdzenie, odwołanie, definicja roli)
+  ma jeden identyfikator korelacji (`OperationCorrelation`), wspólny dla wpisu decyzji i wpisów zmian.
+  Powtórzone sprawdzenia w tej samej operacji nie tworzą kolejnych wpisów; sprawdzenia przez Gate (ekrany)
+  nie zapisują decyzji wcale.
+- **Komunikat dla użytkownika:** ogólne 403 „Nie masz uprawnień do wykonania tej czynności.” (klucz
+  `access.unauthorized`, od E3.6b; bez nazw ról, przypisań, zakresów
+  i przyczyny); pełna podstawa odmowy jest tylko w audycie.
+
+### Z-034a — Izolacja danych po uwagach do E3.6 (E3.7a, 2026-09-28)
+
+- **Dane ról oddzielnie od danych operacyjnych** (rozróżnienie z Z-035): przypisania ról widzi konto tylko
+  dla ról ze swojego katalogu nadawania i tylko w jednostkach, w których może je nadawać, oraz własne
+  przypisania. `members.view` ani `roles.manage` nie dają wglądu w cudze przypisania. Definicje ról widzi:
+  posiadacz `roles.manage` (wszystkie role tych jednostek), posiadacz katalogu (role z katalogu) i posiadacz roli.
+  Zbiór liczy `AccessDecider::roleGrantCatalog` według tych samych reguł co decyzja o nadaniu (test zgodności).
+- **Przypisania oczekujące** (E3.6a) nie dają widoczności; zatwierdzający widzi je jako wnioski.
+- **Odmowy odczytu przez centralny mechanizm:** `DataVisibility` zapisuje odmowę przez
+  `AccessDecider::recordDenial` — jeden wpis na operację i przedmiot, z korelacją operacji. Odpowiedź dla
+  użytkownika: ogólne 404, bez nazw ról, jednostek ani przyczyny.
+- **Odtwarzalność:** każda metoda `DataVisibility` przyjmuje chwilę — widoczność z przeszłości liczona jest
+  według ówczesnych przypisań, wersji ról i struktury.
+
 ### Wątpliwości do rozstrzygnięcia (E3.7, do Jakuba)
 
 1. Czy prawo nadawania ról (`roles.assign`) ma dawać minimalny wgląd w kandydatów (konta/osoby w zarządzanym
@@ -585,4 +667,52 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   organizatora — E10; (3) wielojęzyczne treści tworzone przez organizatora (nazwy wydarzeń, opisy, regulaminy,
   pytania formularzy) — dane, nie pliki `lang/`, w etapach tych treści.
 - **Dodanie języka:** pliki `lang/<kod>/`, `lang/<kod>.json` i wpis w `localization.supported`.
+
+## Z-037 — Rozstrzygnięcia Z-034a we wdrożeniu (E3.7b, 2026-10-05)
+
+- **Nowe uprawnienia (zamiast jednego szerokiego `members.view`):**
+
+  | Nazwa techniczna | Co daje |
+  |---|---|
+  | `members.history.view` | byli członkowie i zakończone okresy członkostwa (`DataVisibility::membershipHistory`), także zarchiwizowanych jednostek |
+  | `structure.history.view` | historia struktury i zarchiwizowanych jednostek, widoczność dla daty z przeszłości |
+  | `roles.audit.view` | kontrola ról: wszystkie przypisania w zakresie, także spoza katalogu nadawania; historia ról |
+  | `people.contacts.view` | pełne dane kontaktowe (np. niezamaskowany e-mail kandydata) |
+  | `people.protected.view` | odczyt danych szczególnie chronionych osób z zakresu (zawsze audytowany) |
+  | `data.export` | eksporty i masowe odczyty danych zakresu (zawsze audytowane) |
+
+  Wybór kandydata do roli **nie** ma osobnego uprawnienia: wynika z `roles.assign` i katalogu nadawania
+  (tylko rola z katalogu, tylko jednostka, w której wolno ją nadać) i nie daje `members.view`.
+  `members.view` pokazuje od E3.7b tylko **obecnych** członków.
+- **Wybór kandydata (`RoleCandidateSearch`):** obszar = obecni członkowie jednostek, w których zarządzający
+  może nadać daną rolę; wynik (`RoleCandidate`): identyfikator osoby, imię i nazwisko, e-mail zamaskowany
+  (`a•••@e•••.pl`, pełny tylko z `people.contacts.view`), czy konto aktywne (zweryfikowany e-mail), czy osoba
+  jest we wskazanej jednostce (lub poniżej). Fraza min. 3 znaki; e-mail tylko dokładne dopasowanie w obszarze
+  (ta sama odpowiedź dla konta spoza zakresu i nieistniejącego); imię/nazwisko — początek słowa, bez znaków
+  wieloznacznych; maks. 10 wyników; limit 20 wyszukiwań na minutę na konto (`config/organization.php`).
+  Rola spoza katalogu lub jednostka spoza zakresu → odmowa z audytem.
+- **Prawo do historii a odtworzenie decyzji:** `AccessDecider::decide(..., $chwila)` to techniczne odtworzenie
+  decyzji (audyt, wyjaśnienia). Prawo użytkownika do przeglądania historii liczy
+  `AccessDecider::historyOrganizationIds` wyłącznie z przypisań aktywnych **dziś**; dla daty z przeszłości obejmuje
+  jednostki, które w tamtej chwili były pod jednostką zakresu (przeniesienie nie zmienia historii), a dla
+  „teraz” — dodatkowo jednostki zarchiwizowane, które w chwili archiwizacji należały do zakresu.
+  `DataVisibility` dla daty z przeszłości najpierw sprawdza to prawo (brak → odmowa 403 z audytem,
+  przyczyna `history_not_permitted`), potem przecina wynik z tym, co było widoczne w tamtej chwili.
+- **Przechowywanie historii członkostwa:** `organization.history.visible_days` = `null` (bez limitu) jako
+  ustawienie **tymczasowe** do czasu polityki przechowywania (Z-017); dane nie są usuwane automatycznie.
+- **Wniosek oczekujący:** `DataVisibility::pendingRoleRequests` zwraca tylko wnioski, które konto może
+  zatwierdzić (bez własnych), jako `RoleRequestSummary`: kogo (imię i nazwisko, zamaskowany e-mail), rola,
+  jednostka, polityka dziedziczenia, termin, kto wnioskował, kiedy i z jakim powodem.
+- **Audyt odczytów (`RecordDataAccess`, połączenie `audit`, tylko metadane):** `data.exported`
+  (`DataVisibility::export`, wymaga `data.export`), `data.bulk_read` (`DataVisibility::fetch` powyżej
+  `organization.reads.bulk_threshold` = 200 wierszy), `data.read` (dane szczególnie chronione,
+  `DataVisibility::readProtected`), `data.read_by_system` (`DataVisibility::systemMemberships`),
+  `system_authority.entered`; rodzaje `report.downloaded` i `access.privileged` są przygotowane dla raportów
+  (E10) i dostępu awaryjnego (gdy powstanie). Zwykłe listy — bez wpisu.
+- **`SystemAuthority` z celem (`SystemPurpose`):** cel, podstawa, lista uprawnień i jednostki zakresu (z
+  jednostkami podrzędnymi) są obowiązkowe; decyzja poza nimi = odmowa (`system_purpose_permission_missing`,
+  `system_purpose_scope_not_covering`). Proces zlecony przez konto (`onBehalfOf`) wymaga przy każdej decyzji
+  aktualnego uprawnienia tego konta (`ordering_account_not_permitted`). Wejście w tryb systemowy jest
+  audytowane. Konto (żądanie HTTP) nie może użyć `SystemAuthority`. W testach pomocniczy cel obejmujący
+  wszystko istnieje tylko w `tests/Fixtures`.
 

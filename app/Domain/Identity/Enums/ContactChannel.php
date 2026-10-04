@@ -9,6 +9,12 @@ enum ContactChannel: string
     case Email = 'email';
     case Phone = 'phone';
 
+    /** Name shown in the interface (lang/<locale>/identity.php). */
+    public function label(): string
+    {
+        return __('identity.channels.'.$this->value);
+    }
+
     /** Canonical form used for storage and comparison. Throws on a value that is not a valid address. */
     public function normalize(string $value): string
     {

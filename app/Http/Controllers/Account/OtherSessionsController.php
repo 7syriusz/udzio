@@ -23,6 +23,6 @@ class OtherSessionsController extends Controller
             $sessions->handle($request->user(), 'account holder logged out other devices', $request->session()->getId());
         });
 
-        return back()->with('status', 'Wylogowano pozostałe urządzenia.');
+        return back()->with('status', __('account.security.other_devices_logged_out'));
     }
 }

@@ -18,8 +18,8 @@ class ContactVerificationCode extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Kod potwierdzenia adresu e-mail')
-            ->line("Twój kod potwierdzenia: {$this->code}")
-            ->line("Kod jest ważny przez {$this->ttlMinutes} minut. Jeśli to nie Ty, zignoruj tę wiadomość.");
+            ->subject(__('notifications.contact_verification.subject'))
+            ->line(__('notifications.contact_verification.code', ['code' => $this->code]))
+            ->line(__('notifications.contact_verification.validity', ['minutes' => $this->ttlMinutes]));
     }
 }

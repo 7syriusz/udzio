@@ -19,7 +19,8 @@ class AccessDenied extends AuthorizationException
         public readonly ?string $organizationId = null,
         public readonly ?string $ability = null,
     ) {
-        parent::__construct('This action is unauthorized.');
+        // A translation key: rendered in the user's language, never as a technical reason.
+        parent::__construct('access.unauthorized');
     }
 
     /** True when the denial was already written to the audit (e.g. with its decision basis). */

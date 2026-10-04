@@ -1,0 +1,24 @@
+<?php
+
+return [
+
+    /*
+    | Organizacja, struktura, członkostwo i role (E3, przeniesione do tłumaczeń w E3.6b).
+    */
+
+    'validation' => [
+        'organization_inactive' => 'Organizacja musi być aktywna.',
+        'archived_cannot_be_renamed' => 'Nie można zmienić nazwy zarchiwizowanej organizacji.',
+        'move_requires_active_units' => 'Przenoszona jednostka i nowy rodzic muszą być aktywni.',
+        'move_creates_cycle' => 'Przeniesienie utworzyłoby cykl w strukturze.',
+        'role_name_taken' => 'Organizacja ma już aktywną rolę o tej nazwie.',
+        'grant_catalog_requires_assign' => 'Katalog nadawania ról wymaga uprawnienia „nadawanie ról”.',
+        'grant_catalog_foreign_role' => 'Katalog może wskazywać tylko aktywne role tej organizacji lub jej jednostek.',
+        'until_in_past' => 'Termin wygaśnięcia musi być w przyszłości.',
+        'role_retired' => 'Nie można nadać wycofanej roli.',
+        'scope_inactive' => 'Zakres musi być aktywną jednostką.',
+        'scope_outside_role_organization' => 'Rolę można nadać tylko w organizacji, która ją zdefiniowała, albo w jej jednostkach.',
+        'request_expired' => 'Wnioskowany termin już minął; potrzebne nowe nadanie.',
+    ],
+
+];

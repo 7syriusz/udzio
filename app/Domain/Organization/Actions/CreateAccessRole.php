@@ -36,7 +36,7 @@ final class CreateAccessRole
                 $current = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->firstOrFail();
                 $this->access->authorizeRoleDefinition($current);
                 if ($current->status !== OrganizationStatus::Active) {
-                    throw ValidationException::withMessages(['organization' => 'Organizacja musi być aktywna.']);
+                    throw ValidationException::withMessages(['organization' => __('organization.validation.organization_inactive')]);
                 }
                 $role = AccessRole::query()->create([
                     'organization_id' => $current->id,

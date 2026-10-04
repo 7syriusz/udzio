@@ -279,3 +279,12 @@ chwilą) albo — w nowych modułach — `whereIn('organization_id',
 $access->grantedOrganizationIds($konto, Permission::…))`. Nigdy nie filtruj zakresu ręcznie. Rekord spoza
 zakresu: 404 z audytem odmowy (`findX` robi to sam). Szczegóły: Z-034.
 
+## 23. Języki i komunikaty (E3.6b)
+
+Tekst dla użytkownika zawsze przez klucz: `__('organization.validation.move_creates_cycle')`, w widokach
+`{{ __('account.contacts.title') }}`. Nowy klucz dodaj w `lang/pl/<obszar>.php` (obszar = moduł lub ekran),
+nazwę pola formularza w `validation.attributes`. W wyjątkach HTTP podawaj klucz (`abort(403, 'access.mfa_required')`)
+— `UserFacingMessage` przetłumaczy go albo pokaże ogólny komunikat statusu. Języka nie ustawiaj ręcznie
+(`App::setLocale` tylko w `SetLocale`); wiadomości do konta idą w jego języku (`preferredLocale`). Kody techniczne
+i dane użytkowników zostają bez tłumaczenia. Szczegóły: Z-036.
+

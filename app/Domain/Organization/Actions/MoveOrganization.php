@@ -23,14 +23,14 @@ final class MoveOrganization
             $currentOrganization = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->firstOrFail();
             $currentParent = $parent === null ? null : Organization::query()->whereKey($parent->getKey())->lockForUpdate()->firstOrFail();
             if ($currentOrganization->status !== OrganizationStatus::Active || ($currentParent !== null && $currentParent->status !== OrganizationStatus::Active)) {
-                throw ValidationException::withMessages(['organization' => 'Przenoszona jednostka i nowy rodzic muszą być aktywni.']);
+                throw ValidationException::withMessages(['organization' => __('organization.validation.move_requires_active_units')]);
             }
 
             $seen = [$currentOrganization->id => true];
             $ancestor = $currentParent?->id;
             while ($ancestor !== null) {
                 if (isset($seen[$ancestor])) {
-                    throw ValidationException::withMessages(['parent' => 'Przeniesienie utworzyłoby cykl w strukturze.']);
+                    throw ValidationException::withMessages(['parent' => __('organization.validation.move_creates_cycle')]);
                 }
                 $seen[$ancestor] = true;
                 $ancestor = OrganizationParent::query()->where('organization_id', $ancestor)->whereNull('valid_to')->lockForUpdate()->first()?->parent_id;

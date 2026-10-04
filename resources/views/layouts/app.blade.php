@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,15 +10,15 @@
 </head>
 <body class="min-h-screen bg-gray-50 text-gray-900">
     <header class="border-b bg-white">
-        <nav class="mx-auto flex max-w-4xl flex-wrap items-center gap-4 px-4 py-3" aria-label="Konto">
+        <nav class="mx-auto flex max-w-4xl flex-wrap items-center gap-4 px-4 py-3" aria-label="{{ __('ui.nav.label') }}">
             <a href="{{ route('account.show') }}" class="font-semibold">{{ config('app.name') }}</a>
-            <a href="{{ route('account.show') }}" class="text-blue-700 underline">Moje dane</a>
-            <a href="{{ route('account.contacts.index') }}" class="text-blue-700 underline">Kontakty</a>
-            <a href="{{ route('account.represented.index') }}" class="text-blue-700 underline">Osoby reprezentowane</a>
-            <a href="{{ route('account.security') }}" class="text-blue-700 underline">Bezpieczeństwo</a>
+            <a href="{{ route('account.show') }}" class="text-blue-700 underline">{{ __('ui.nav.account') }}</a>
+            <a href="{{ route('account.contacts.index') }}" class="text-blue-700 underline">{{ __('ui.nav.contacts') }}</a>
+            <a href="{{ route('account.represented.index') }}" class="text-blue-700 underline">{{ __('ui.nav.represented') }}</a>
+            <a href="{{ route('account.security') }}" class="text-blue-700 underline">{{ __('ui.nav.security') }}</a>
             <form method="POST" action="{{ route('logout') }}" class="ml-auto">
                 @csrf
-                <button type="submit" class="text-sm underline">Wyloguj</button>
+                <button type="submit" class="text-sm underline">{{ __('ui.nav.logout') }}</button>
             </form>
         </nav>
     </header>

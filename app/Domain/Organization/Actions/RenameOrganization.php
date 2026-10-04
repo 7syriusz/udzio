@@ -20,7 +20,7 @@ final class RenameOrganization
             $current = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->firstOrFail();
 
             if ($current->status === OrganizationStatus::Archived) {
-                throw ValidationException::withMessages(['organization' => 'Nie można zmienić nazwy zarchiwizowanej organizacji.']);
+                throw ValidationException::withMessages(['organization' => __('organization.validation.archived_cannot_be_renamed')]);
             }
 
             $current->name = $name;

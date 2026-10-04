@@ -32,14 +32,14 @@ class ContactController extends Controller
         $data = $request->validate(['channel' => ['required', Rule::enum(ContactChannel::class)], 'value' => ['required', 'string', 'max:254']]);
         $add->handle($this->person($request), ContactChannel::from($data['channel']), $data['value']);
 
-        return back()->with('status', 'Dodano kontakt.');
+        return back()->with('status', __('account.contacts.added'));
     }
 
     public function destroy(Request $request, Contact $contact, RemoveContact $remove): RedirectResponse
     {
         $remove->handle($this->own($request, $contact, 'contact.remove'), 'account holder removed contact');
 
-        return back()->with('status', 'Usunięto kontakt.');
+        return back()->with('status', __('account.contacts.removed'));
     }
 
     public function sendVerification(Request $request, Contact $contact, RequestContactVerification $send): RedirectResponse
@@ -47,10 +47,10 @@ class ContactController extends Controller
         try {
             $send->handle($this->own($request, $contact, 'contact.verify'));
         } catch (ContactChannelUnavailable) {
-            throw ValidationException::withMessages(['contact' => 'Potwierdzanie numerów telefonu nie jest jeszcze dostępne.']);
+            throw ValidationException::withMessages(['contact' => __('identity.contact.phone_verification_unavailable')]);
         }
 
-        return back()->with('status', 'Wysłaliśmy kod.');
+        return back()->with('status', __('account.contacts.code_sent'));
     }
 
     public function verify(Request $request, Contact $contact, VerifyContact $verify): RedirectResponse
@@ -59,10 +59,10 @@ class ContactController extends Controller
         try {
             $verify->handle($this->own($request, $contact, 'contact.verify'), $data['code']);
         } catch (ContactVerificationFailed) {
-            throw ValidationException::withMessages(['code' => 'Kod jest nieprawidłowy albo wygasł.']);
+            throw ValidationException::withMessages(['code' => __('identity.contact.code_invalid')]);
         }
 
-        return back()->with('status', 'Kontakt potwierdzony.');
+        return back()->with('status', __('account.contacts.confirmed'));
     }
 
     private function person(Request $request): Person

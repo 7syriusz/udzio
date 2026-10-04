@@ -14,7 +14,7 @@ use Laravel\Fortify\Contracts\SuccessfulPasswordResetLinkRequestResponse;
  */
 class NeutralPasswordResetLinkResponse implements FailedPasswordResetLinkRequestResponse, SuccessfulPasswordResetLinkRequestResponse
 {
-    public const MESSAGE = 'Jeśli konto z tym adresem istnieje, wysłaliśmy link do ustawienia nowego hasła.';
+    public const MESSAGE = 'auth.screens.forgot_password.sent';
 
     public function __construct(protected string $status = '') {}
 
@@ -22,7 +22,7 @@ class NeutralPasswordResetLinkResponse implements FailedPasswordResetLinkRequest
     public function toResponse($request): JsonResponse|RedirectResponse
     {
         return $request->wantsJson()
-            ? new JsonResponse(['message' => self::MESSAGE], 200)
-            : back()->with('status', self::MESSAGE);
+            ? new JsonResponse(['message' => __(self::MESSAGE)], 200)
+            : back()->with('status', __(self::MESSAGE));
     }
 }

@@ -25,7 +25,7 @@ final class RequestContactVerification
         $settings = config('identity.contacts.verification');
         $limiterKey = 'contact-verification:'.$contact->id;
         if (! RateLimiter::attempt($limiterKey, $settings['max_requests_per_hour'], fn () => true, 3600)) {
-            throw ValidationException::withMessages(['contact' => 'Zbyt wiele próśb o kod. Spróbuj później.']);
+            throw ValidationException::withMessages(['contact' => __('identity.contact.too_many_code_requests')]);
         }
 
         $code = str_pad((string) random_int(0, 10 ** $settings['code_length'] - 1), $settings['code_length'], '0', STR_PAD_LEFT);

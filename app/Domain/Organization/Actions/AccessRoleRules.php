@@ -54,7 +54,7 @@ final class AccessRoleRules
             return [];
         }
         if (! in_array(Permission::RolesAssign->value, $permissions, true)) {
-            throw ValidationException::withMessages(['grant_rules' => 'Katalog nadawania ról wymaga uprawnienia roles.assign.']);
+            throw ValidationException::withMessages(['grant_rules' => __('organization.validation.grant_catalog_requires_assign')]);
         }
         $validated = Validator::make(['grant_rules' => $rules], [
             'grant_rules' => ['array'],
@@ -69,7 +69,7 @@ final class AccessRoleRules
         foreach ($validated as $rule) {
             $role = AccessRole::query()->where('public_id', $rule['role'])->first();
             if ($role === null || $role->status !== AccessRoleStatus::Active || ! in_array($role->organization_id, $allowedOwners, true)) {
-                throw ValidationException::withMessages(['grant_rules' => 'Katalog może wskazywać tylko aktywne role tej organizacji lub jej jednostek.']);
+                throw ValidationException::withMessages(['grant_rules' => __('organization.validation.grant_catalog_foreign_role')]);
             }
             $normalized[] = [
                 'role' => $role->public_id,

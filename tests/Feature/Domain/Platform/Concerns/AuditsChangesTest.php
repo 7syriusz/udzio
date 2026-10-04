@@ -28,7 +28,7 @@ class AuditsChangesTest extends TestCase
         $this->assertSame((string) $user->id, $entry->subject_id);
         $values = $entry->after_values;
         ksort($values);
-        $this->assertSame(['email' => '[REDACTED]', 'email_verified_at' => null, 'family_name' => '[REDACTED]', 'given_name' => '[REDACTED]', 'password' => '[REDACTED]', 'person_id' => null, 'remember_token' => '[REDACTED]', 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'two_factor_secret' => null], $values);
+        $this->assertSame(['email' => '[REDACTED]', 'email_verified_at' => null, 'family_name' => '[REDACTED]', 'given_name' => '[REDACTED]', 'locale' => null, 'password' => '[REDACTED]', 'person_id' => null, 'remember_token' => '[REDACTED]', 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'two_factor_secret' => null], $values);
         foreach (['Private Name', 'private@example.test', 'secret-token', $user->password] as $secret) {
             $this->assertStringNotContainsString($secret, $entry->toJson());
         }

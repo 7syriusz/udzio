@@ -9,8 +9,10 @@ use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
 use App\Domain\Platform\Enums\DataClass;
+use App\Domain\Platform\Localization\LocaleResolver;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,7 +24,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 
 #[Fillable(['given_name', 'family_name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
-class User extends Authenticatable implements ClassifiesData, MustVerifyEmail
+class User extends Authenticatable implements ClassifiesData, HasLocalePreference, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use AuditsChanges, HasFactory, Notifiable, TwoFactorAuthenticatable {
@@ -46,6 +48,7 @@ class User extends Authenticatable implements ClassifiesData, MustVerifyEmail
             'given_name' => DataClass::Restricted,
             'family_name' => DataClass::Restricted,
             'email' => DataClass::Restricted,
+            'locale' => DataClass::Internal,
             'email_verified_at' => DataClass::Internal,
             'password' => DataClass::Secret,
             'remember_token' => DataClass::Secret,
@@ -59,6 +62,12 @@ class User extends Authenticatable implements ClassifiesData, MustVerifyEmail
     public function replaceRecoveryCode($code): void
     {
         app(AuditReason::class)->because('recovery code used at login', fn () => $this->replaceRecoveryCodeUnaudited($code));
+    }
+
+    /** Language of mail and notifications sent to the account (Laravel uses it automatically). */
+    public function preferredLocale(): string
+    {
+        return app(LocaleResolver::class)->forAccount($this);
     }
 
     public function hasConfirmedTwoFactor(): bool

@@ -36,7 +36,7 @@ final class ApproveRoleAssignment
                 $current->requested_by_type === 'account' ? $current->requested_by_id : null, $current->public_id);
             $now = CarbonImmutable::now('UTC');
             if ($current->requested_until !== null && $current->requested_until->lessThanOrEqualTo($now)) {
-                throw ValidationException::withMessages(['until' => 'Wnioskowany termin już minął; potrzebne nowe nadanie.']);
+                throw ValidationException::withMessages(['until' => __('organization.validation.request_expired')]);
             }
             $active = $current->transition(RelationStatus::Active, $now);
 

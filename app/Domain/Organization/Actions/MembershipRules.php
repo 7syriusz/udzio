@@ -29,7 +29,7 @@ final class MembershipRules
     {
         $organization = Organization::query()->whereKey($id)->lockForUpdate()->firstOrFail();
         if ($organization->status !== OrganizationStatus::Active) {
-            throw ValidationException::withMessages(['organization' => 'Organizacja musi być aktywna.']);
+            throw ValidationException::withMessages(['organization' => __('organization.validation.organization_inactive')]);
         }
 
         return $organization;

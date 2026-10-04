@@ -21,6 +21,6 @@ class AccountController extends Controller
         $person = $request->user()->person ?? abort(404);
         $update->handle($person, $request->only(['given_name', 'family_name', 'birth_date']) + ['birth_date' => null], 'account holder updated own data');
 
-        return redirect()->route('account.show')->with('status', 'Zapisano.');
+        return redirect()->route('account.show')->with('status', __('ui.status.saved'));
     }
 }

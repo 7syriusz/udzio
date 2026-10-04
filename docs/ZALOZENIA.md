@@ -522,7 +522,8 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   ma jeden identyfikator korelacji (`OperationCorrelation`), wspólny dla wpisu decyzji i wpisów zmian.
   Powtórzone sprawdzenia w tej samej operacji nie tworzą kolejnych wpisów; sprawdzenia przez Gate (ekrany)
   nie zapisują decyzji wcale.
-- **Komunikat dla użytkownika:** ogólne 403 „This action is unauthorized.” (bez nazw ról, przypisań, zakresów
+- **Komunikat dla użytkownika:** ogólne 403 „Nie masz uprawnień do wykonania tej czynności.” (klucz
+  `access.unauthorized`, od E3.6b; bez nazw ról, przypisań, zakresów
   i przyczyny); pełna podstawa odmowy jest tylko w audycie.
 
 ### Z-034a — Izolacja danych po uwagach do E3.6 (E3.7a, 2026-09-28)
@@ -556,4 +557,32 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
    odmowy i odczyty pól klas SPECIAL CATEGORY/SECRET (E1.7).
 7. Czy procesy techniczne (raporty, eksporty w kolejce) mają mieć widoczność przez `SystemAuthority`?
    Obecnie `DataVisibility` wymaga konta; zostanie to ustalone przy raportach (E10).
+
+## Z-036 — Języki interfejsu i komunikatów systemowych (E3.6b, 2026-10-05, decyzja Jakuba)
+
+- **Polski** jest językiem domyślnym i awaryjnym (`config/localization.php`, `app.locale`,
+  `app.fallback_locale`). Kompletna jest tylko wersja polska; brak klucza w innym języku = tekst polski.
+- **Klucze tłumaczeń zamiast tekstów w kodzie.** Każdy komunikat dla użytkownika (walidacja, komunikaty po zapisie,
+  błędy HTTP, odmowa dostępu, ekrany, nazwy uprawnień i kanałów, treść e-maili) korzysta z klucza w
+  `lang/pl/*.php`; teksty Laravel i Fortify są w `lang/pl.json`, `validation.php`, `auth.php`, `passwords.php`.
+  Pilnują tego testy w `tests/Unit/ArchitectureTest.php`.
+- **Kody techniczne nie są tłumaczone i nie trafiają do użytkownika:** przyczyny odmów (`role_not_in_catalog`),
+  nazwy uprawnień (`members.view`), komunikaty wyjątków domenowych (np. `ValidityConflict`) zostają po
+  angielsku jako informacje dla logów i audytu; użytkownik widzi przetłumaczony komunikat ogólny
+  (`App\Http\Exceptions\UserFacingMessage`). Danych wpisanych przez użytkowników się nie tłumaczy.
+- **Wybór języka — jedno miejsce (`LocaleResolver`, stosowany przez middleware `SetLocale`):**
+  1. jawny wybór w bieżącej sesji (także wejście publiczne bez konta, `POST /locale`);
+  2. język zapisany na koncie (`users.locale`, ustawiany przy jawnym wyborze zalogowanego);
+  3. język domyślny kontekstu (organizacja, strona publiczna) — parametr przygotowany, użyty, gdy kontekst
+     dostanie ustawienie języka;
+  4. polski.
+  Wartość spoza listy `localization.supported` jest pomijana. Języka nie wybiera się automatycznie z kraju,
+  adresu IP ani danych organizacji; nagłówka przeglądarki (`Accept-Language`) też nie używamy (założenie,
+  odwracalne przez dodanie kroku w `LocaleResolver`).
+- **Trzy rodzaje tłumaczeń są rozdzielone:** (1) interfejs i komunikaty systemowe — `lang/` (E3.6b);
+  (2) język wiadomości e-mail/SMS/powiadomień — ustalany dla odbiorcy (`User::preferredLocale`,
+  `LocaleResolver::forAccount`/`forPerson`), teksty w `lang/pl/notifications.php`; szablony komunikacji
+  organizatora — E10; (3) wielojęzyczne treści tworzone przez organizatora (nazwy wydarzeń, opisy, regulaminy,
+  pytania formularzy) — dane, nie pliki `lang/`, w etapach tych treści.
+- **Dodanie języka:** pliki `lang/<kod>/`, `lang/<kod>.json` i wpis w `localization.supported`.
 

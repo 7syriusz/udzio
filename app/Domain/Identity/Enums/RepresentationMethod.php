@@ -19,14 +19,9 @@ enum RepresentationMethod: string
     /** An additional verification procedure was completed. */
     case AdditionalVerification = 'additional_verification';
 
+    /** Name shown in the interface (lang/<locale>/identity.php). */
     public function label(): string
     {
-        return match ($this) {
-            self::PartiesAcceptance => 'akceptacja stron',
-            self::Declaration => 'oświadczenie',
-            self::RoleDecision => 'decyzja uprawnionej roli',
-            self::Document => 'dokument',
-            self::AdditionalVerification => 'dodatkowa weryfikacja',
-        };
+        return __('identity.representation_methods.'.$this->value);
     }
 }

@@ -5,11 +5,12 @@ use App\Http\Controllers\Account\ContactController;
 use App\Http\Controllers\Account\OtherSessionsController;
 use App\Http\Controllers\Account\RepresentedPersonController;
 use App\Http\Controllers\Account\SecurityController;
+use App\Http\Controllers\LocaleController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::view('/', 'welcome')->name('home');
+
+Route::post('/locale', [LocaleController::class, 'update'])->middleware('throttle:20,1')->name('locale.update');
 
 Route::middleware('auth')->group(function (): void {
     Route::delete('/user/other-sessions', [OtherSessionsController::class, 'destroy'])->name('other-sessions.destroy');

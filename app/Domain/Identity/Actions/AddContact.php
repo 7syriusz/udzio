@@ -27,7 +27,7 @@ final class AddContact
             return Contact::create(['person_id' => $owner->id, 'channel' => $channel, 'value' => $normalized]);
         } catch (QueryException $e) {
             if (($e->errorInfo[1] ?? null) === 1062 && str_contains($e->getMessage(), 'active_key')) {
-                throw ValidationException::withMessages(['value' => 'Ten kontakt jest już przypisany do tej osoby.']);
+                throw ValidationException::withMessages(['value' => __('identity.contact.duplicate')]);
             }
             throw $e;
         }

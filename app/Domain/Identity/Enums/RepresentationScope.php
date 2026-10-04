@@ -16,6 +16,12 @@ enum RepresentationScope: string
     case PaymentsManage = 'payments.manage';
     case ConsentsManage = 'consents.manage';
 
+    /** Name shown in the interface (lang/<locale>/identity.php). */
+    public function label(): string
+    {
+        return __('identity.representation_scopes.'.$this->value);
+    }
+
     /** @param list<self> $scopes @return list<string> */
     public static function normalize(array $scopes): array
     {

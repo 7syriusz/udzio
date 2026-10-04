@@ -17,7 +17,7 @@ class RequireTwoFactor
     {
         $user = $request->user();
         if (! $user instanceof User || ! $user->hasConfirmedTwoFactor()) {
-            abort(403, 'Ta część wymaga włączonego uwierzytelniania dwuskładnikowego.');
+            abort(403, 'access.mfa_required');
         }
 
         return $next($request);

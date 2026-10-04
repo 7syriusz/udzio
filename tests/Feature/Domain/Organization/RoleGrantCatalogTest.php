@@ -180,7 +180,7 @@ class RoleGrantCatalogTest extends TestCase
         config(['app.debug' => false]); // as in production (.env.production.example)
         $response = $this->actingAs($this->admin)->postJson('/_probe/grant', ['grantee' => $this->employee->id, 'role' => $this->auditor->id, 'scope' => $this->office->id]);
 
-        $response->assertForbidden()->assertExactJson(['message' => 'This action is unauthorized.']);
+        $response->assertForbidden()->assertExactJson(['message' => 'Nie masz uprawnień do wykonania tej czynności.']);
         foreach ([$this->auditor->public_id, $this->hrManager->public_id, 'Audytor', 'Kadry', $this->company->public_id, 'role_not_in_catalog'] as $secret) {
             $this->assertStringNotContainsString($secret, $response->getContent());
         }

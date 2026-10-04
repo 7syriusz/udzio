@@ -40,7 +40,7 @@ final class AssignRole
     {
         $now = CarbonImmutable::now('UTC');
         if ($until !== null && CarbonImmutable::instance($until)->lessThanOrEqualTo($now)) {
-            throw ValidationException::withMessages(['until' => 'Termin wygaśnięcia musi być w przyszłości.']);
+            throw ValidationException::withMessages(['until' => __('organization.validation.until_in_past')]);
         }
 
         return $this->operation->within(fn () => $this->reason->because($reason, fn () => DB::transaction(function () use ($account, $role, $scope, $inheritance, $until, $now): RoleAssignment {
@@ -49,14 +49,14 @@ final class AssignRole
             $currentScope = Organization::query()->whereKey($scope->getKey())->lockForUpdate()->firstOrFail();
             $decision = $this->access->authorizeRoleGrant('assign', $currentRole, $currentScope, $until, $account->getKey());
             if ($currentRole->status !== AccessRoleStatus::Active) {
-                throw ValidationException::withMessages(['role' => 'Nie można nadać wycofanej roli.']);
+                throw ValidationException::withMessages(['role' => __('organization.validation.role_retired')]);
             }
             if ($currentScope->status !== OrganizationStatus::Active) {
-                throw ValidationException::withMessages(['scope' => 'Zakres musi być aktywną jednostką.']);
+                throw ValidationException::withMessages(['scope' => __('organization.validation.scope_inactive')]);
             }
             $roleOwner = $currentRole->organization_id;
             if ($currentScope->id !== $roleOwner && ! $this->hierarchy->ancestorsAt($currentScope, $now)->contains('id', $roleOwner)) {
-                throw ValidationException::withMessages(['scope' => 'Rolę można nadać tylko w organizacji, która ją zdefiniowała, albo w jej jednostkach.']);
+                throw ValidationException::withMessages(['scope' => __('organization.validation.scope_outside_role_organization')]);
             }
 
             $actor = $this->context->current();

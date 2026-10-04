@@ -41,7 +41,7 @@ class RepresentedPersonController extends Controller
         $acting->handle($request->user(), $person, RepresentationScope::ProfileUpdate,
             fn () => $update->handle($person, $request->only(['given_name', 'family_name', 'birth_date']) + ['birth_date' => null], 'representative updated data'));
 
-        return redirect()->route('account.represented.show', $person)->with('status', 'Zapisano.');
+        return redirect()->route('account.represented.show', $person)->with('status', __('ui.status.saved'));
     }
 
     private function authorizeScope(Request $request, Person $person, RepresentationScope $scope, ActOnBehalf $acting): void

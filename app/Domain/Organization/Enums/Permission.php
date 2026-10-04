@@ -20,19 +20,9 @@ enum Permission: string
     case RepresentationsEstablish = 'representations.establish';
     case AuditView = 'audit.view';
 
+    /** Name shown in the interface (lang/<locale>/permissions.php). */
     public function label(): string
     {
-        return match ($this) {
-            self::OrganizationView => 'podgląd organizacji',
-            self::OrganizationManage => 'zarządzanie organizacją (nazwa, archiwizacja)',
-            self::StructureManage => 'zarządzanie strukturą jednostek',
-            self::MembersView => 'podgląd członków',
-            self::MembersManage => 'zarządzanie członkostwem',
-            self::RolesManage => 'definiowanie ról',
-            self::RolesAssign => 'nadawanie ról',
-            self::PersonLinksResolve => 'rozstrzyganie połączeń kont z osobami',
-            self::RepresentationsEstablish => 'ustanawianie reprezentacji',
-            self::AuditView => 'podgląd audytu',
-        };
+        return __('permissions.'.$this->value);
     }
 }

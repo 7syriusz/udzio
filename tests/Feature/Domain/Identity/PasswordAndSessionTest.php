@@ -42,7 +42,7 @@ class PasswordAndSessionTest extends TestCase
         $throttled = $this->from('/forgot-password')->post('/forgot-password', ['email' => 'anna@example.test']);
 
         foreach ([$known, $unknown, $throttled] as $response) {
-            $response->assertRedirect('/forgot-password')->assertSessionHas('status', NeutralPasswordResetLinkResponse::MESSAGE)->assertSessionHasNoErrors();
+            $response->assertRedirect('/forgot-password')->assertSessionHas('status', __(NeutralPasswordResetLinkResponse::MESSAGE))->assertSessionHasNoErrors();
         }
         Notification::assertSentToTimes($account, ResetPassword::class, 1);
     }

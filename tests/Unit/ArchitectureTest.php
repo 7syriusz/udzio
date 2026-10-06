@@ -73,6 +73,17 @@ class ArchitectureTest extends TestCase
         $this->assertSame([], $offenders, 'Teksty dla użytkownika wpisane w kodzie zamiast kluczy tłumaczeń (E3.6b).');
     }
 
+    /**
+     * Until their screens add re-authentication and central control (E3.10/E3.11, Z-040), these operations are
+     * reachable from the console only: no controller, route, API or form may call them.
+     */
+    public function test_privileged_operations_have_no_http_entry_yet(): void
+    {
+        $offenders = $this->filesMatching(['app/Http', 'routes'], '/\b(ResetAccountMfa|GrantPlatformRole|InstallFirstAdministrator|CreateOrganization)\b/');
+
+        $this->assertSame([], $offenders, 'Operacja uprzywilejowana dostępna przez HTTP przed wdrożeniem ekranu z kontrolą: '.implode(', ', $offenders));
+    }
+
     public function test_views_contain_no_hardcoded_text(): void
     {
         $offenders = [];

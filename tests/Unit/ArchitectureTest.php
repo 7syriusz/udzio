@@ -75,11 +75,13 @@ class ArchitectureTest extends TestCase
 
     /**
      * Until their screens add re-authentication and central control (E3.10/E3.11, Z-040), these operations are
-     * reachable from the console only: no controller, route, API or form may call them.
+     * reachable from the console only: no controller, route, API or form may call them. The Identity procedures
+     * of E2 (`ResolvePersonLinkReview`, `GrantRepresentation`) are reached only through the authorized
+     * Organization actions (E3.9, Z-042).
      */
     public function test_privileged_operations_have_no_http_entry_yet(): void
     {
-        $offenders = $this->filesMatching(['app/Http', 'routes'], '/\b(ResetAccountMfa|EmergencyResetAccountMfa|GrantPlatformRole|InstallFirstAdministrator|CreateOrganization)\b/');
+        $offenders = $this->filesMatching(['app/Http', 'routes'], '/\b(ResetAccountMfa|EmergencyResetAccountMfa|GrantPlatformRole|InstallFirstAdministrator|CreateOrganization|ResolvePersonLinkReview|GrantRepresentation)\b/');
 
         $this->assertSame([], $offenders, 'Operacja uprzywilejowana dostępna przez HTTP przed wdrożeniem ekranu z kontrolą: '.implode(', ', $offenders));
     }

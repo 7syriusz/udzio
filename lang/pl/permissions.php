@@ -58,6 +58,9 @@ return [
             'reset' => 'reset uwierzytelniania dwuskładnikowego innego konta',
         ],
         'install' => 'utworzenie pierwszego administratora platformy (tylko instalacja)',
+        'person_links' => [
+            'resolve' => 'rozstrzyganie powiązań kont z osobami na całej platformie',
+        ],
         'emergency' => [
             'mfa_reset' => 'awaryjny reset uwierzytelniania dwuskładnikowego (tylko konsola serwera)',
         ],

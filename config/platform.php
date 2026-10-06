@@ -9,7 +9,7 @@ return [
     // privileged, so MFA is required whatever this flag says; the flag records the policy explicitly.
     'roles' => [
         'administrator' => [
-            'permissions' => ['platform.administrators.manage', 'platform.mfa.reset'],
+            'permissions' => ['platform.administrators.manage', 'platform.mfa.reset', 'platform.person_links.resolve'],
             'requires_mfa' => true,
         ],
     ],

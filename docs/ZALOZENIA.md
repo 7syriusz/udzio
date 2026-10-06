@@ -265,7 +265,7 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   Użytkownik widzi neutralny komunikat o dodatkowej weryfikacji z numerem zgłoszenia.
 - **Rozstrzygnięcie:** `ResolvePersonLinkReview` — po dodatkowej weryfikacji łączy konto z jednym z kandydatów
   albo z nową osobą; inna osoba jest odrzucana; rozstrzygnięte zgłoszenie jest niezmienne i audytowane.
-  Uprawnienie do rozstrzygania i ekran operatora — E3 (role).
+  Uprawnienie do rozstrzygania — E3.9 (Z-042); ekran operatora — później.
 - **Bez weryfikacji nie ma powiązania:** niezweryfikowany kontakt nigdy nie powoduje dołączenia.
 
 ## Z-023 — Reset hasła, limity prób i sesje (E2.5, techniczne + funkcjonalne, 2026-09-26)
@@ -901,3 +901,33 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - **Obecne konta z hasłem krótszym niż 15 znaków** nie są blokowane — nowe minimum obowiązuje przy zakładaniu konta
   oraz ustawianiu, zmianie i resecie hasła. Limit prób logowania bez zmian: 5/min (e-mail + IP), kod MFA 5/min.
 - **Weryfikacja:** `PasswordPolicyTest` (11 przypadków) i `PasswordWithSpacesTest`.
+
+## Z-042 — Uprawnienia do operacji E2 (E3.9, 2026-10-06)
+
+- **Zasada:** procedury Identity z E2 (`ResolvePersonLinkReview`, `GrantRepresentation`) pozostają prymitywami bez
+  zależności od organizacji; wykonuje je uprawniona rola przez akcje Organization z centralną decyzją
+  (`ResolvePersonLinkReviewAsOperator`, `EstablishRepresentation`). Żadna ścieżka HTTP nie wywołuje prymitywów
+  bezpośrednio (`ArchitectureTest`).
+- **Rozstrzyganie powiązania konta z osobą (Z-022)** — założenia:
+  - operator organizacji z `person_links.resolve` „obejmuje” kandydatów, którzy są **obecnymi członkami** jednostek
+    w jego zakresie; widzi tylko ich (identyfikator, imię, nazwisko — `PersonLinkReviewAccess::candidatesFor`)
+    i tylko zgłoszenia z co najmniej jednym takim kandydatem (`openReviewsFor`);
+  - może połączyć konto tylko z objętym kandydatem; „nową osobę” może wybrać tylko, gdy obejmuje **wszystkich**
+    kandydatów (inaczej właścicielem konta mógłby być ktoś spoza jego wiedzy) — odmowy `candidate_outside_scope`,
+    `candidates_outside_scope`; brak objętych kandydatów — 404 (`no_candidate_in_scope`);
+  - zgłoszenia, których kandydaci nie należą do żadnej organizacji operatora (np. osoby bez członkostwa),
+    rozstrzyga administrator platformy — nowe uprawnienie platformy `platform.person_links.resolve` w roli
+    `administrator`; obejmuje wszystkich kandydatów;
+  - nikt nie rozstrzyga zgłoszenia własnego konta (`own_review`, `own_account`).
+- **Ustanawianie reprezentacji (Z-025) przez rolę** — założenia: `representations.establish` w jednostce, w której
+  osoba reprezentowana jest **obecnym członkiem**; osoba spoza zakresu (lub brak uprawnienia) — 404
+  (`represented_outside_scope`), bez ujawniania członkostwa. Rola ustanawia reprezentację tylko sposobem
+  `role_decision` lub `document` — akceptacja stron i oświadczenie pochodzą od stron, nie od roli. Reguły E2 nadal
+  obowiązują (włączone sposoby, dozwolone zakresy, nikt nie ustanawia reprezentacji dla siebie). Reprezentant nie
+  musi być członkiem organizacji (np. rodzic). Zmiana zakresu i zakończenie reprezentacji przez rolę — przy ekranie
+  reprezentacji (do zaplanowania), wg tej samej zasady.
+- **Uprzywilejowane:** `person_links.resolve` i `representations.establish` dopisane do
+  `organization.privileged_access.permissions` — połączenie konta z osobą i reprezentacja otwierają kontu dane
+  osoby, więc wymagają MFA (Z-038). Odmowa z powodu MFA lub e-maila daje polską wskazówkę zamiast „nie znaleziono”
+  (`AccessDecider::blockedBySecurityCondition`).
+- **Weryfikacja:** `E2OperationsAuthorizationTest` (10 przypadków).

@@ -14,6 +14,11 @@ enum PlatformPermission: string
     /** Resetting another account's MFA after confirming that person's identity. */
     case MfaReset = 'platform.mfa.reset';
     /**
+     * Resolving any account-to-person review (Z-022, E3.9) — also when a candidate belongs to no organization
+     * in an operator's scope; organization operators resolve only within their scope (`person_links.resolve`).
+     */
+    case PersonLinksResolve = 'platform.person_links.resolve';
+    /**
      * Creating the first platform administrator. Never part of a role: only the installation process holds it,
      * under SystemAuthority, and only until the installation is completed.
      */

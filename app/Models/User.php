@@ -9,7 +9,7 @@ use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Classification\ClassifiesData;
 use App\Domain\Platform\Concerns\AuditsChanges;
 use App\Domain\Platform\Enums\DataClass;
-use App\Domain\Platform\Localization\LocaleResolver;
+use App\Domain\Platform\Localization\RecipientLocale;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Translation\HasLocalePreference;
@@ -67,7 +67,7 @@ class User extends Authenticatable implements ClassifiesData, HasLocalePreferenc
     /** Language of mail and notifications sent to the account (Laravel uses it automatically). */
     public function preferredLocale(): string
     {
-        return app(LocaleResolver::class)->forAccount($this);
+        return app(RecipientLocale::class)->forAccount($this);
     }
 
     public function hasConfirmedTwoFactor(): bool

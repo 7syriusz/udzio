@@ -15,7 +15,8 @@ use InvalidArgumentException;
  *    have a language setting;
  * 4. the default language (Polish), which is also the fallback for a missing translation.
  * A value outside the supported list is ignored at every step. Never derived from country, IP address
- * or organization data alone.
+ * or organization data alone. Only the interface and system messages (area 1); the language of messages sent
+ * to a recipient is RecipientLocale (area 2); organizer content in several languages is data (area 3).
  */
 final class LocaleResolver
 {
@@ -44,20 +45,6 @@ final class LocaleResolver
         }
 
         return $this->default();
-    }
-
-    /** Language for messages sent to the account (mail now; SMS and notifications later). */
-    public function forAccount(User $account): string
-    {
-        return $this->resolve(null, $account);
-    }
-
-    /** Language for messages sent to a PERSON: the language of its account, if it has one. */
-    public function forPerson(int $personId): string
-    {
-        $account = User::query()->where('person_id', $personId)->first();
-
-        return $account === null ? $this->default() : $this->forAccount($account);
     }
 
     /** An explicit choice: kept for the session and, for a signed-in account, saved on the account. */

@@ -29,6 +29,10 @@ return [
             'audit.view',
             'people.protected.view',
             'data.export',
+            // Linking an account to a person and establishing a representation open a person's data to an
+            // account (E3.9, Z-042).
+            'person_links.resolve',
+            'representations.establish',
         ],
     ],
 

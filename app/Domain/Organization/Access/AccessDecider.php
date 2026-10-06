@@ -357,6 +357,23 @@ final class AccessDecider
     }
 
     /**
+     * First of the units where the account would hold `$permission` but for its own security condition (unverified
+     * e-mail, MFA not set up — E3.8a), so a refused operation can guide the user instead of answering "not found".
+     *
+     * @param  list<int>  $organizationIds
+     */
+    public function blockedBySecurityCondition(User $account, Permission $permission, array $organizationIds): ?Organization
+    {
+        foreach (Organization::query()->whereKey($organizationIds)->orderBy('id')->get() as $organization) {
+            if (in_array($this->decide($account, $permission, $organization)->reason, [PrivilegedAccessPolicy::REASON_EMAIL_UNVERIFIED, PrivilegedAccessPolicy::REASON_MFA_REQUIRED], true)) {
+                return $organization;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Units whose history the account may view with `$permission` (E3.7b). Only assignments active NOW count —
      * a role held in the past gives nothing today. Each such assignment covers, for a past moment, the units
      * that were under its scope unit at that moment (so a later move does not rewrite where a unit was); for

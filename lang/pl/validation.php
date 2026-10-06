@@ -125,7 +125,7 @@ return [
         'mixed' => 'Pole :attribute musi zawierać co najmniej jedną wielką i jedną małą literę.',
         'numbers' => 'Pole :attribute musi zawierać co najmniej jedną cyfrę.',
         'symbols' => 'Pole :attribute musi zawierać co najmniej jeden symbol.',
-        'uncompromised' => 'Podane hasło pojawiło się w wycieku danych. Wybierz inne.',
+        'uncompromised' => 'To hasło jest zbyt popularne albo pojawiło się w wycieku danych. Wybierz inne, najlepiej dłuższą frazę.',
     ],
     'present' => 'Pole :attribute musi być obecne.',
     'present_if' => 'Pole :attribute musi być obecne, gdy :other ma wartość :value.',
@@ -167,6 +167,10 @@ return [
     'uuid' => 'Pole :attribute musi być prawidłowym identyfikatorem UUID.',
 
     'custom' => [
+        'password' => [
+            'min' => 'Hasło musi mieć co najmniej :min znaków. Możesz użyć łatwego do zapamiętania zdania ze spacjami.',
+            'max' => 'Hasło może mieć najwyżej :max znaków.',
+        ],
         'current_password' => [
             'current_password' => 'Podane hasło nie jest Twoim obecnym hasłem.',
         ],

@@ -69,8 +69,8 @@ class RoleGrantCatalogTest extends TestCase
                 ['role' => $this->accountant->public_id, 'include_descendants' => true, 'max_days' => 365],
             ]);
         });
-        $this->admin = User::factory()->create();
-        $this->employee = User::factory()->create();
+        $this->admin = User::factory()->withTwoFactor()->create();
+        $this->employee = User::factory()->withTwoFactor()->create();
         $this->grant($this->admin, $this->hrManager, $this->company, ScopeInheritance::UnitAndDescendants);
         $this->travel(1)->minute();
     }
@@ -133,7 +133,7 @@ class RoleGrantCatalogTest extends TestCase
 
     public function test_3_scope_outside_the_managed_units_is_refused(): void
     {
-        $officeAdmin = User::factory()->create();
+        $officeAdmin = User::factory()->withTwoFactor()->create();
         $this->grant($officeAdmin, $this->hrManager, $this->office);
 
         $this->assertDenied(fn () => $this->assignAs($officeAdmin, $this->employee, $this->accountant, $this->company), 'no_matching_assignment');
@@ -164,7 +164,7 @@ class RoleGrantCatalogTest extends TestCase
         $this->assertEqualsCanonicalizing(['roles.manage', 'catalog:'.$this->auditor->public_id], $exceeding);
 
         // (b) changing the definition of a role one holds
-        $roleEditor = User::factory()->create();
+        $roleEditor = User::factory()->withTwoFactor()->create();
         $editorRole = $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->company, 'Redaktor ról', ['roles.manage', 'members.view'], 'Rola'));
         $this->grant($roleEditor, $editorRole, $this->company);
         $this->travel(1)->minute();
@@ -230,7 +230,7 @@ class RoleGrantCatalogTest extends TestCase
         $this->system(fn () => $this->app->make(UpdateAccessRole::class)->handle($this->hrManager, 'Kadry', ['members.view', 'roles.assign'], 'Zatwierdzanie', [
             ['role' => $this->accountant->public_id, 'include_descendants' => true, 'max_days' => 365, 'requires_approval' => true],
         ]));
-        $secondAdmin = User::factory()->create();
+        $secondAdmin = User::factory()->withTwoFactor()->create();
         $this->grant($secondAdmin, $this->hrManager, $this->company, ScopeInheritance::UnitAndDescendants);
         $this->travel(1)->minute();
 

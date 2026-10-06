@@ -39,6 +39,7 @@ final class AccessDecider
         private readonly RecordAudit $audit,
         private readonly RecordAccessDenial $denials,
         private readonly OperationCorrelation $correlation,
+        private readonly PrivilegedAccessPolicy $privileged,
     ) {}
 
     public function decide(?User $account, Permission $permission, Organization $target, ?DateTimeInterface $at = null): AccessDecision
@@ -60,7 +61,7 @@ final class AccessDecider
         }
 
         $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($at)
-            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get();
+            ->with(['account', 'role.organization', 'scopeOrganization'])->orderBy('id')->get();
         if ($assignments->isEmpty()) {
             return $this->deny(AccessDecision::REASON_NO_ACTIVE_ASSIGNMENT, $basis);
         }
@@ -74,7 +75,7 @@ final class AccessDecider
             $considered[] = ['assignment' => $assignment->public_id, 'outcome' => $outcome];
         }
 
-        return $this->deny(AccessDecision::REASON_NO_MATCHING_ASSIGNMENT, [...$basis, 'considered' => $considered]);
+        return $this->deny($this->denialReason($considered), [...$basis, 'considered' => $considered]);
     }
 
     /**
@@ -126,7 +127,7 @@ final class AccessDecider
         }
 
         $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($at)
-            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get();
+            ->with(['account', 'role.organization', 'scopeOrganization'])->orderBy('id')->get();
         if ($assignments->isEmpty()) {
             return $this->deny(AccessDecision::REASON_NO_ACTIVE_ASSIGNMENT, $basis);
         }
@@ -171,7 +172,7 @@ final class AccessDecider
             }
         }
         if ($match === null) {
-            return $this->deny(AccessDecision::REASON_NO_MATCHING_ASSIGNMENT, [...$basis, 'considered' => $considered]);
+            return $this->deny($this->denialReason($considered), [...$basis, 'considered' => $considered]);
         }
 
         if ($operation !== 'revoke') {
@@ -309,7 +310,7 @@ final class AccessDecider
 
         $this->recordDenial($subjectType, $subjectId, $target->public_id, $decision->basis);
 
-        throw (new AccessDenied($subjectType, $subjectId, $target->public_id, $permission->value))->alreadyRecorded();
+        throw (new AccessDenied($subjectType, $subjectId, $target->public_id, $permission->value, AccessDenied::messageFor($decision->reason)))->alreadyRecorded();
     }
 
     /**
@@ -342,7 +343,7 @@ final class AccessDecider
         $at = CarbonImmutable::instance($at ?? CarbonImmutable::now('UTC'))->utc();
         $ids = [];
         $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($at)
-            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get();
+            ->with(['account', 'role.organization', 'scopeOrganization'])->orderBy('id')->get();
         foreach ($assignments as $assignment) {
             if ($this->assignmentOutcome($assignment, $permission, $at)[0] === 'applicable') {
                 $ids = [...$ids, ...$assignment->coveredOrganizationIds($at)];
@@ -368,7 +369,7 @@ final class AccessDecider
     {
         $now = CarbonImmutable::now('UTC');
         $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($now)
-            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get()
+            ->with(['account', 'role.organization', 'scopeOrganization'])->orderBy('id')->get()
             ->filter(fn (RoleAssignment $assignment) => $this->assignmentOutcome($assignment, $permission, $now)[0] === 'applicable');
         if ($assignments->isEmpty()) {
             return [];
@@ -406,7 +407,7 @@ final class AccessDecider
         $at = CarbonImmutable::instance($at ?? CarbonImmutable::now('UTC'))->utc();
         $catalog = [];
         $assignments = RoleAssignment::query()->where('user_id', $account->getKey())->activeAt($at)
-            ->with(['role.organization', 'scopeOrganization'])->orderBy('id')->get();
+            ->with(['account', 'role.organization', 'scopeOrganization'])->orderBy('id')->get();
         foreach ($assignments as $assignment) {
             [$outcome, $version] = $this->assignmentOutcome($assignment, Permission::RolesAssign, $at);
             if ($outcome !== 'applicable') {
@@ -442,6 +443,10 @@ final class AccessDecider
         }
         if (! $assignment->scopeOrganization->isActiveAt($at)) {
             return ['scope_inactive', null];
+        }
+        $unmet = $this->privileged->unmetCondition($assignment->account, $version->content, $at);
+        if ($unmet !== null) {
+            return [$unmet, null];
         }
 
         return ['applicable', $version];
@@ -496,6 +501,24 @@ final class AccessDecider
         }
 
         return $path;
+    }
+
+    /**
+     * Overall reason when no assignment matched. An assignment that would match but for the account's security
+     * conditions (E3.8) is named, so the user is sent to verify the e-mail or set up MFA instead of a bare denial.
+     *
+     * @param  list<array{assignment: string, outcome: string}>  $considered
+     */
+    private function denialReason(array $considered): string
+    {
+        $outcomes = array_column($considered, 'outcome');
+        foreach ([PrivilegedAccessPolicy::REASON_EMAIL_UNVERIFIED, PrivilegedAccessPolicy::REASON_MFA_REQUIRED] as $reason) {
+            if (in_array($reason, $outcomes, true)) {
+                return $reason;
+            }
+        }
+
+        return AccessDecision::REASON_NO_MATCHING_ASSIGNMENT;
     }
 
     /** @param array<string, mixed> $basis */

@@ -78,7 +78,7 @@ class LocalizationTest extends TestCase
         $this->get('/_probe/denied')->assertForbidden()->assertSee('Nie masz uprawnień do wykonania tej czynności.')->assertDontSee('access.unauthorized');
         $this->getJson('/_probe/hidden')->assertNotFound()->assertExactJson(['message' => 'Nie znaleziono']);
         $this->get('/_probe/hidden')->assertNotFound()->assertSee('Nie znaleziono');
-        $this->actingAs(User::factory()->create())->get('/_probe/mfa')->assertForbidden()->assertSee('Ta część wymaga włączonego uwierzytelniania dwuskładnikowego.');
+        $this->actingAs(User::factory()->create())->get('/_probe/mfa')->assertForbidden()->assertSee('Ta czynność wymaga uwierzytelniania dwuskładnikowego.');
         $this->getJson('/does-not-exist')->assertNotFound()->assertExactJson(['message' => 'Nie znaleziono strony.']);
     }
 

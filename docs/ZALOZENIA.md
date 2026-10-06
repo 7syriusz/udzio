@@ -730,3 +730,29 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   audytowane. Konto (żądanie HTTP) nie może użyć `SystemAuthority`. W testach pomocniczy cel obejmujący
   wszystko istnieje tylko w `tests/Fixtures`.
 
+
+## Z-038 — MFA dla dostępu uprzywilejowanego (E3.8a, 2026-10-06)
+
+- **Warunki konta przed działaniem przypisania roli** (`PrivilegedAccessPolicy`, sprawdzane w `AccessDecider` dla każdej
+  decyzji, listy jednostek i prawa do historii):
+  - każde uprawnienie wymaga potwierdzonego adresu e-mail konta (przyczyna odmowy `email_unverified`);
+  - MFA wymaga rola, która ma je w swojej **polityce bezpieczeństwa** (`access_roles.requires_mfa`, część wersji roli,
+    zmiana audytowana przed/po) **albo** zawiera uprawnienie uprzywilejowane. Nazwa roli nie ma znaczenia.
+  - Uprawnienia uprzywilejowane (konfiguracja `organization.privileged_access.permissions`): `roles.manage`,
+    `roles.assign`, `roles.audit.view`, `audit.view`, `people.protected.view`, `data.export`. Lista jest konfiguracją
+    — do przeglądu, gdy dojdą uprawnienia finansowe (E8) i eksporty (E10).
+- **Przypisanie może istnieć** bez MFA; nieaktywne są wtedy **wszystkie** uprawnienia tej roli (nie tylko
+  uprzywilejowane) — rola jest jednostką polityki. Uprawnienia zaczynają działać po potwierdzeniu MFA kodem
+  i przestają po wyłączeniu MFA przez posiadacza.
+- **Odmowa:** audyt `access.denied` z przyczyną `mfa_required` / `email_unverified`; użytkownik dostaje polski komunikat
+  (`access.mfa_required` z odnośnikiem do ustawień bezpieczeństwa, `access.email_unverified`), bez nazw ról,
+  uprawnień ani kodów technicznych. Inne przyczyny nadal dają ogólny komunikat.
+- **Odtwarzanie decyzji z przeszłości:** MFA liczy się od `two_factor_confirmed_at`. Stan MFA nie ma historii, więc po
+  wyłączeniu lub resecie MFA odtworzona decyzja sprzed tej chwili wyjdzie jako odmowa — pełną podstawę dawnej decyzji
+  zawiera wpis `access.granted` w audycie.
+- **Kody odzyskiwania** (uzupełnienie Z-024): szyfrowane w bazie, jednorazowe, ponowne wygenerowanie (po potwierdzeniu
+  hasła) unieważnia cały poprzedni zestaw; użycie i wygenerowanie są audytowane jako zmiana konta z powodem, wartości
+  `[REDACTED]`.
+- **Brak obejścia MFA:** reset hasła (odzyskanie konta) i zmiana hasła nie zmieniają MFA, a logowanie nadal wymaga
+  kodu; adresu e-mail konta nie da się zmienić (Fortify `updateProfileInformation` wyłączone, ekran konta zmienia tylko
+  dane PERSON); drugie konto na ten sam adres nie powstaje. Wyłączenie MFA i nowe kody wymagają potwierdzenia hasła.

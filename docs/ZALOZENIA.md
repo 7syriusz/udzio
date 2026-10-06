@@ -812,6 +812,16 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
    administratora; zapisuje pełny audyt; powiadamia właściciela konta; po resecie uprawnienia platformy działają
    dopiero po ponownym ustawieniu MFA (Z-038). Niezależnie od tego przy uruchomieniu platformy powstaje co najmniej
    dwóch administratorów platformy.
+   - **Wdrożone w E3.8d:** `php artisan platform:emergency-mfa-reset <e-mail> --reason= --identity-confirmation=
+     --confirm=<e-mail>` (bez opcji — pytania interaktywne; potwierdzeniem jest ponowne wpisanie adresu konta).
+     Działa jako proces pod `SystemAuthority` z celem `platform.emergency_mfa_reset` i jedynym uprawnieniem
+     `platform.emergency.mfa_reset`, którego nie ma żadna rola; konto zawsze dostaje odmowę (`console_only`),
+     a operacja nie ma trasy HTTP (`ArchitectureTest`). Skutek jak przy resecie przez operatora (`ClearAccountMfa`):
+     usunięcie sekretu TOTP i kodów odzyskiwania, koniec sesji i „zapamiętaj mnie”, e-mail do właściciela
+     (`MfaResetNotice`, w języku odbiorcy). Audyt `account.mfa_reset` z `procedure: emergency`, powodem, opisem
+     potwierdzenia tożsamości i operatorem (użytkownik systemu i nazwa serwera); próba bez potwierdzenia —
+     wpis z wynikiem `denied` (`refusal: not_confirmed`), bez zmian na koncie. Zwykły reset przez operatora
+     (`ResetAccountMfa`, `procedure: operator`) także powiadamia właściciela.
 2. **Reset MFA przez ekran — wymagania przed wykonaniem:** osoba wykonująca jest zalogowana, ma uprawnienie
    `platform.mfa.reset`, ma aktywne MFA, **ponownie potwierdza hasło** (`password.confirm`) lub równoważnie się
    uwierzytelnia, podaje sposób potwierdzenia tożsamości właściciela konta i powód. Sama aktywna sesja nie wystarcza.

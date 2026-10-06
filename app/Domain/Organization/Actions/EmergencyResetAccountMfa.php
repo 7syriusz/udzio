@@ -13,13 +13,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 /**
- * Resets another account's MFA (E3.8b) when its holder lost the second factor. Requires `platform.mfa.reset`
- * (with the operator's own MFA) and a recorded confirmation of the holder's identity; the holder can never do
- * it with their own platform role. Removes the TOTP secret and every recovery code, ends all sessions and
- * "remember me" cookies and tells the holder by e-mail; privileged permissions stop until MFA is set up again.
- * Audited as `account.mfa_reset`. A screen for it must add re-authentication (`password.confirm`, Z-040).
+ * Emergency MFA reset (E3.8d, Z-040) for when no platform administrator can use `platform.mfa.reset`. Only a
+ * console process under SystemAuthority with the `platform.emergency.mfa_reset` purpose may run it — never an
+ * account or an HTTP request. It has the same effect as the operator reset (no MFA, no recovery codes, no
+ * sessions, e-mail to the holder) and grants nothing: no role, no new administrator, no way past MFA — the
+ * holder must set MFA up again before platform permissions work. Audited as `account.mfa_reset` with
+ * `procedure: emergency` and the server operator.
  */
-final class ResetAccountMfa
+final class EmergencyResetAccountMfa
 {
     public function __construct(
         private readonly PlatformAccess $access,
@@ -29,20 +30,24 @@ final class ResetAccountMfa
         private readonly OperationCorrelation $operation,
     ) {}
 
-    /** @param string $identityConfirmation how the holder's identity was confirmed (e.g. document checked during a video call) */
-    public function handle(User $account, string $identityConfirmation, string $reason): void
+    /**
+     * @param  string  $identityConfirmation  how the holder's identity was confirmed
+     * @param  string  $operator  who ran it on the server (system user and host), recorded in the audit
+     */
+    public function handle(User $account, string $identityConfirmation, string $reason, string $operator): void
     {
         $input = Validator::make(['identity_confirmation' => trim($identityConfirmation), 'reason' => trim($reason)], [
             'identity_confirmation' => ['required', 'string', 'max:1000'],
             'reason' => ['required', 'string', 'max:1000'],
         ])->validate();
 
-        $this->operation->within(fn () => $this->reason->because($input['reason'], fn () => DB::transaction(function () use ($account, $input): void {
+        $this->operation->within(fn () => $this->reason->because($input['reason'], fn () => DB::transaction(function () use ($account, $input, $operator): void {
             $current = User::query()->whereKey($account->getKey())->lockForUpdate()->firstOrFail();
-            $this->access->authorize(PlatformPermission::MfaReset, $current);
+            $this->access->authorize(PlatformPermission::EmergencyMfaReset, $current);
             $ended = $this->clear->handle($current, $input['reason']);
             $this->audit->handle('account.mfa_reset', 'account', (string) $current->id, reason: $input['reason'], after: [
-                'procedure' => 'operator',
+                'procedure' => 'emergency',
+                'operator' => $operator,
                 'identity_confirmation' => $input['identity_confirmation'],
                 'sessions_ended' => $ended,
                 'recovery_codes_revoked' => true,

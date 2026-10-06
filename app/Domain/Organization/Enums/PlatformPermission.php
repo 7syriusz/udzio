@@ -18,6 +18,12 @@ enum PlatformPermission: string
      * under SystemAuthority, and only until the installation is completed.
      */
     case InstallFirstAdministrator = 'platform.install';
+    /**
+     * Emergency MFA reset from the server console (E3.8d, Z-040). Never part of a role: only a console process
+     * started by someone with administrative access to the server holds it, under SystemAuthority. It removes
+     * MFA and sessions of one account and grants nothing.
+     */
+    case EmergencyMfaReset = 'platform.emergency.mfa_reset';
 
     public function label(): string
     {

@@ -16,6 +16,18 @@ return [
         'invalid' => 'Nie utworzono administratora — popraw dane:',
     ],
 
+    'emergency' => [
+        'account_missing' => 'Nie znaleziono konta o tym adresie e-mail.',
+        'ask_reason' => 'Powód awaryjnego resetu',
+        'ask_identity' => 'Jak potwierdzono tożsamość właściciela konta?',
+        'summary' => 'Awaryjny reset MFA konta :email (:name): zostaną usunięte uwierzytelnianie dwuskładnikowe, kody odzyskiwania i wszystkie sesje. Żadne uprawnienia nie zostaną nadane.',
+        'ask_confirm' => 'Aby potwierdzić, wpisz ponownie adres e-mail konta',
+        'not_confirmed' => 'Operacja nie została potwierdzona — nic nie zmieniono. Próba została zapisana w audycie.',
+        'invalid' => 'Nie wykonano resetu — uzupełnij dane:',
+        'done' => 'Zresetowano uwierzytelnianie dwuskładnikowe konta :email i zakończono jego sesje. Właściciel konta otrzymał powiadomienie e-mail.',
+        'next_steps' => 'Uprawnienia platformy tego konta zaczną działać dopiero po ponownym włączeniu uwierzytelniania dwuskładnikowego.',
+    ],
+
     'validation' => [
         'role_unknown' => 'Nieznana rola platformy.',
     ],

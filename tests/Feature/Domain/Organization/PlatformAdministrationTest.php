@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Domain\Organization;
 
+use App\Domain\Identity\Notifications\MfaResetNotice;
 use App\Domain\Organization\Access\AccessDecider;
 use App\Domain\Organization\Access\PlatformAccess;
 use App\Domain\Organization\Access\SystemAuthority;
@@ -251,8 +252,10 @@ class PlatformAdministrationTest extends TestCase
         $this->post('/two-factor-challenge', ['recovery_code' => $oldCodes[0]]);
         $this->assertNull($holder->fresh()->two_factor_recovery_codes, 'Dawne kody odzyskiwania nie działają.');
 
+        Notification::assertSentTo($holder, MfaResetNotice::class);
         $entry = AuditEntry::query()->where('action', 'account.mfa_reset')->sole();
         $this->assertSame((string) $administrator->id, $entry->actor_id);
+        $this->assertSame('operator', $entry->after_values['procedure']);
         $this->assertSame((string) $holder->id, $entry->subject_id);
         $this->assertSame('Utrata telefonu', $entry->reason);
         $this->assertSame('Dowód osobisty sprawdzony podczas wideorozmowy', $entry->after_values['identity_confirmation']);

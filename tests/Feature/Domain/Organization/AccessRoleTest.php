@@ -19,11 +19,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use LogicException;
 use Tests\Fixtures\AnyScopeTestPurpose;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 class AccessRoleTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     protected function setUp(): void
     {
@@ -141,7 +142,7 @@ class AccessRoleTest extends TestCase
     public function test_archived_organization_cannot_define_roles(): void
     {
         $organization = Organization::factory()->create();
-        $this->app->make(ArchiveOrganization::class)->handle($organization, 'Likwidacja');
+        $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Likwidacja'));
 
         $this->expectException(ValidationException::class);
         $this->create($organization);

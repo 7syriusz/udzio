@@ -19,11 +19,12 @@ use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 class OrganizationTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     public function test_creation_is_independent_of_people_and_accounts_and_is_audited(): void
     {
@@ -56,7 +57,7 @@ class OrganizationTest extends TestCase
         $organization = Organization::factory()->create(['name' => 'Stara nazwa']);
         $other = Organization::factory()->create(['name' => 'Inna organizacja']);
 
-        $renamed = $this->app->make(RenameOrganization::class)->handle($organization, 'Nowa nazwa', 'Uchwała o zmianie nazwy');
+        $renamed = $this->asSystem(fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Nowa nazwa', 'Uchwała o zmianie nazwy'));
 
         $this->assertSame($organization->public_id, $renamed->public_id);
         $this->assertSame('Nowa nazwa', $organization->fresh()->name);
@@ -74,7 +75,7 @@ class OrganizationTest extends TestCase
         $organization = Organization::factory()->create(['name' => 'Bez zmian']);
         foreach ([
             fn () => $this->app->make(CreateOrganization::class)->handle($name),
-            fn () => $this->app->make(RenameOrganization::class)->handle($organization, $name, 'Korekta'),
+            fn () => $this->asSystem(fn () => $this->app->make(RenameOrganization::class)->handle($organization, $name, 'Korekta')),
         ] as $operation) {
             try {
                 $operation();
@@ -86,7 +87,7 @@ class OrganizationTest extends TestCase
 
         $this->assertDatabaseCount('organizations', 1);
         $this->assertSame('Bez zmian', $organization->fresh()->name);
-        $this->assertDatabaseCount('audit_entries', 1);
+        $this->assertSame(1, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public static function invalidNames(): array
@@ -99,8 +100,8 @@ class OrganizationTest extends TestCase
         $organization = Organization::factory()->create();
         $archive = $this->app->make(ArchiveOrganization::class);
 
-        $archive->handle($organization, 'Zakończenie działalności');
-        $archive->handle($organization, 'Ponowienie');
+        $this->asSystem(fn () => $archive->handle($organization, 'Zakończenie działalności'));
+        $this->asSystem(fn () => $archive->handle($organization, 'Ponowienie'));
 
         $this->assertModelExists($organization);
         $this->assertSame(OrganizationStatus::Archived, $organization->fresh()->status);
@@ -109,40 +110,40 @@ class OrganizationTest extends TestCase
         $this->assertSame('archived', $entry->after_values['status']);
         $this->assertNotNull($organization->fresh()->archived_at, 'Chwila archiwizacji jest zapisana (E3.6).');
         $this->assertSame('Zakończenie działalności', $entry->reason);
-        $this->assertDatabaseCount('audit_entries', 2);
+        $this->assertSame(2, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public function test_stale_instance_cannot_rename_an_archived_organization(): void
     {
         $organization = Organization::factory()->create(['name' => 'Historia']);
-        $this->app->make(ArchiveOrganization::class)->handle($organization, 'Archiwizacja');
+        $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Archiwizacja'));
 
         try {
-            $this->app->make(RenameOrganization::class)->handle($organization, 'Nowa', 'Korekta');
+            $this->asSystem(fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Nowa', 'Korekta'));
             $this->fail('Archived organization was renamed.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('organization', $exception->errors());
         }
 
         $this->assertSame('Historia', $organization->fresh()->name);
-        $this->assertDatabaseCount('audit_entries', 2);
+        $this->assertSame(2, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public function test_unchanged_name_does_not_add_a_false_change_to_history(): void
     {
         $organization = Organization::factory()->create(['name' => 'Bez zmian']);
 
-        $this->app->make(RenameOrganization::class)->handle($organization, 'Bez zmian', 'Ponowienie');
+        $this->asSystem(fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Bez zmian', 'Ponowienie'));
 
-        $this->assertDatabaseCount('audit_entries', 1);
+        $this->assertSame(1, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public function test_rename_and_archive_require_a_nonempty_reason(): void
     {
         $organization = Organization::factory()->create(['name' => 'Bez zmian']);
         foreach ([
-            fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Nowa', ' '),
-            fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, ''),
+            fn () => $this->asSystem(fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Nowa', ' ')),
+            fn () => $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, '')),
         ] as $operation) {
             try {
                 $operation();
@@ -154,7 +155,7 @@ class OrganizationTest extends TestCase
 
         $this->assertSame('Bez zmian', $organization->fresh()->name);
         $this->assertSame(OrganizationStatus::Active, $organization->fresh()->status);
-        $this->assertDatabaseCount('audit_entries', 1);
+        $this->assertSame(1, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public function test_public_identifier_cannot_be_changed(): void
@@ -194,7 +195,7 @@ class OrganizationTest extends TestCase
         }
 
         $this->assertModelExists($organization);
-        $this->assertDatabaseCount('audit_entries', 1);
+        $this->assertSame(1, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public function test_audit_failure_rolls_back_rename_and_archive(): void
@@ -205,8 +206,8 @@ class OrganizationTest extends TestCase
         });
 
         foreach ([
-            fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Nowa', 'Korekta'),
-            fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Archiwizacja'),
+            fn () => $this->asSystem(fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Nowa', 'Korekta')),
+            fn () => $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Archiwizacja')),
         ] as $operation) {
             try {
                 $operation();
@@ -218,7 +219,7 @@ class OrganizationTest extends TestCase
 
         $this->assertSame('Przed awarią', $organization->fresh()->name);
         $this->assertSame(OrganizationStatus::Active, $organization->fresh()->status);
-        $this->assertDatabaseCount('audit_entries', 1);
+        $this->assertSame(1, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
         $this->assertNull($this->app->make(AuditReason::class)->current());
     }
 }

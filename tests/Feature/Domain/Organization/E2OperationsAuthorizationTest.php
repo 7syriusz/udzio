@@ -39,6 +39,7 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 use Tests\Fixtures\AnyScopeTestPurpose;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 /**
@@ -47,7 +48,7 @@ use Tests\TestCase;
  */
 class E2OperationsAuthorizationTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     private Organization $company;
 
@@ -70,7 +71,7 @@ class E2OperationsAuthorizationTest extends TestCase
         parent::setUp();
         $this->travelTo(CarbonImmutable::parse('2026-03-01 10:00:00', 'UTC'));
         [$this->company, $this->office, $this->foreign] = Organization::factory()->count(3)->create()->all();
-        $this->app->make(MoveOrganization::class)->handle($this->office, $this->company, 'Struktura');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->office, $this->company, 'Struktura'));
         $this->system(function (): void {
             $this->resolver = $this->app->make(CreateAccessRole::class)->handle($this->company, 'Weryfikacja kont', ['person_links.resolve', 'members.view'], 'Rola');
             $this->establisher = $this->app->make(CreateAccessRole::class)->handle($this->company, 'Opieka', ['representations.establish'], 'Rola');

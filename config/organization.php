@@ -36,6 +36,23 @@ return [
         ],
     ],
 
+    'founding' => [
+        // Role the founder of a new organization receives in it (E3.10a, Z-043) — rights in that organization only,
+        // never platform rights. Its catalog covers every role of the organization and its units ('*'), so the
+        // founder can hand out roles defined later; it requires MFA (privileged permissions and its own policy).
+        'founder_role' => [
+            'name' => 'Administrator organizacji',
+            'permissions' => [
+                'organization.view', 'organization.manage', 'structure.manage', 'structure.history.view',
+                'members.view', 'members.manage', 'members.history.view',
+                'roles.manage', 'roles.assign', 'roles.audit.view', 'audit.view',
+                'person_links.resolve', 'representations.establish', 'people.contacts.view',
+            ],
+            'grant_rules' => [['role' => '*', 'include_descendants' => true]],
+            'requires_mfa' => true,
+        ],
+    ],
+
     'representation_policies' => [
         // When a role may establish a representation (E3.9a, Z-042) — set by a scenario or the organization's
         // configuration; none by default, so no role establishes one. Each policy names:

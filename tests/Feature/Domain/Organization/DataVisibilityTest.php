@@ -26,11 +26,12 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\Fixtures\AnyScopeTestPurpose;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 class DataVisibilityTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     private Organization $clubA;
 
@@ -49,7 +50,7 @@ class DataVisibilityTest extends TestCase
         parent::setUp();
         $this->travelTo(CarbonImmutable::parse('2026-01-01 10:00:00', 'UTC'));
         [$this->clubA, $this->sectionA, $this->clubB] = Organization::factory()->count(3)->create()->all();
-        $this->app->make(MoveOrganization::class)->handle($this->sectionA, $this->clubA, 'Struktura');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->sectionA, $this->clubA, 'Struktura'));
         $this->shared = $this->person('Anna');
         $this->onlyB = $this->person('Bartek');
         $admit = $this->app->make(AdmitMember::class);
@@ -142,7 +143,7 @@ class DataVisibilityTest extends TestCase
 
     public function test_archived_unit_drops_out_of_visibility(): void
     {
-        $this->app->make(ArchiveOrganization::class)->handle($this->sectionA, 'Likwidacja sekcji');
+        $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($this->sectionA, 'Likwidacja sekcji'));
 
         $this->assertSame([$this->clubA->id], $this->visibility()->organizations($this->adminA)->pluck('id')->all());
         $this->assertSame([], $this->visibility()->people($this->adminA)->pluck('id')->all());

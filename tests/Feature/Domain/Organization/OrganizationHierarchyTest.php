@@ -15,18 +15,19 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 class OrganizationHierarchyTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     public function test_deep_hierarchy_uses_the_same_organization_model_and_has_ordered_queries(): void
     {
         $this->freezeTime();
         $nodes = Organization::factory()->count(12)->create();
         for ($i = 1; $i < $nodes->count(); $i++) {
-            $this->app->make(MoveOrganization::class)->handle($nodes[$i], $nodes[$i - 1], 'Struktura');
+            $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($nodes[$i], $nodes[$i - 1], 'Struktura'));
         }
         $hierarchy = $this->app->make(OrganizationHierarchy::class);
 
@@ -41,12 +42,12 @@ class OrganizationHierarchyTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-09-27 12:00:00.123456', 'UTC'));
         [$first, $second, $unit, $child] = Organization::factory()->count(4)->create()->all();
         $move = $this->app->make(MoveOrganization::class);
-        $old = $move->handle($unit, $first, 'Pierwszy przydział');
-        $move->handle($child, $unit, 'Dział');
+        $old = $this->asSystem(fn () => $move->handle($unit, $first, 'Pierwszy przydział'));
+        $this->asSystem(fn () => $move->handle($child, $unit, 'Dział'));
         $before = now()->toImmutable();
         $this->travelTo($before->addMicrosecond());
 
-        $new = $move->handle($unit, $second, 'Reorganizacja');
+        $new = $this->asSystem(fn () => $move->handle($unit, $second, 'Reorganizacja'));
 
         $hierarchy = $this->app->make(OrganizationHierarchy::class);
         $this->assertSame([$unit->id, $first->id], $hierarchy->ancestorsAt($child, $before)->modelKeys());
@@ -65,11 +66,11 @@ class OrganizationHierarchyTest extends TestCase
         $this->freezeTime();
         [$root, $unit] = Organization::factory()->count(2)->create()->all();
         $move = $this->app->make(MoveOrganization::class);
-        $move->handle($unit, $root, 'Przyłączenie');
+        $this->asSystem(fn () => $move->handle($unit, $root, 'Przyłączenie'));
         $before = now()->toImmutable();
         $this->travel(1)->seconds();
 
-        $this->assertNull($move->handle($unit, null, 'Usamodzielnienie'));
+        $this->assertNull($this->asSystem(fn () => $move->handle($unit, null, 'Usamodzielnienie')));
         $hierarchy = $this->app->make(OrganizationHierarchy::class);
         $this->assertSame([], $hierarchy->ancestorsAt($unit, now())->modelKeys());
         $this->assertSame([$root->id], $hierarchy->ancestorsAt($unit, $before)->modelKeys());
@@ -80,13 +81,13 @@ class OrganizationHierarchyTest extends TestCase
     {
         [$root, $unit, $child] = Organization::factory()->count(3)->create()->all();
         $move = $this->app->make(MoveOrganization::class);
-        $move->handle($unit, $root, 'Oddział');
-        $move->handle($child, $unit, 'Dział');
-        $count = AuditEntry::count();
+        $this->asSystem(fn () => $move->handle($unit, $root, 'Oddział'));
+        $this->asSystem(fn () => $move->handle($child, $unit, 'Dział'));
+        $count = AuditEntry::query()->where('action', '!=', 'access.granted')->count();
 
         foreach ([$root, $child] as $parent) {
             try {
-                $move->handle($root, $parent, 'Nieprawidłowe przeniesienie');
+                $this->asSystem(fn () => $move->handle($root, $parent, 'Nieprawidłowe przeniesienie'));
                 $this->fail('Cycle accepted.');
             } catch (ValidationException $exception) {
                 $this->assertArrayHasKey('parent', $exception->errors());
@@ -94,28 +95,28 @@ class OrganizationHierarchyTest extends TestCase
         }
 
         $this->assertDatabaseCount('organization_parents', 2);
-        $this->assertDatabaseCount('audit_entries', $count);
+        $this->assertSame($count, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public function test_repeating_the_same_assignment_or_detachment_does_not_create_history(): void
     {
         [$root, $unit] = Organization::factory()->count(2)->create()->all();
         $move = $this->app->make(MoveOrganization::class);
-        $this->assertNull($move->handle($unit, null, 'Już korzeń'));
-        $period = $move->handle($unit, $root, 'Przyłączenie');
+        $this->assertNull($this->asSystem(fn () => $move->handle($unit, null, 'Już korzeń')));
+        $period = $this->asSystem(fn () => $move->handle($unit, $root, 'Przyłączenie'));
 
-        $this->assertSame($period->id, $move->handle($unit, $root, 'Ponowienie')->id);
+        $this->assertSame($period->id, $this->asSystem(fn () => $move->handle($unit, $root, 'Ponowienie'))->id);
         $this->assertDatabaseCount('organization_parents', 1);
-        $this->assertDatabaseCount('audit_entries', 3);
+        $this->assertSame(3, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public function test_archived_units_and_parents_cannot_be_assigned_using_stale_models(): void
     {
         [$active, $archived] = Organization::factory()->count(2)->create()->all();
-        $this->app->make(ArchiveOrganization::class)->handle($archived, 'Archiwizacja');
+        $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($archived, 'Archiwizacja'));
         foreach ([[$active, $archived], [$archived, $active]] as [$child, $parent]) {
             try {
-                $this->app->make(MoveOrganization::class)->handle($child, $parent, 'Przeniesienie');
+                $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($child, $parent, 'Przeniesienie'));
                 $this->fail('Archived organization accepted.');
             } catch (ValidationException $exception) {
                 $this->assertArrayHasKey('organization', $exception->errors());
@@ -128,7 +129,7 @@ class OrganizationHierarchyTest extends TestCase
     {
         [$root, $unit] = Organization::factory()->count(2)->create()->all();
         try {
-            $this->app->make(MoveOrganization::class)->handle($unit, $root, ' ');
+            $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($unit, $root, ' '));
             $this->fail('Reason omitted.');
         } catch (InvalidArgumentException $exception) {
             $this->assertStringContainsString('Audit reason', $exception->getMessage());
@@ -141,9 +142,9 @@ class OrganizationHierarchyTest extends TestCase
         $this->freezeTime();
         [$first, $second, $unit] = Organization::factory()->count(3)->create()->all();
         $move = $this->app->make(MoveOrganization::class);
-        $old = $move->handle($unit, $first, 'Przyłączenie');
+        $old = $this->asSystem(fn () => $move->handle($unit, $first, 'Przyłączenie'));
         $this->travel(1)->seconds();
-        $auditCount = AuditEntry::count();
+        $auditCount = AuditEntry::query()->where('action', '!=', 'access.granted')->count();
         Event::listen('eloquent.creating: '.AuditEntry::class, function (AuditEntry $entry): void {
             if ($entry->action === 'organization_parent.created') {
                 throw new RuntimeException('Audit unavailable');
@@ -151,20 +152,20 @@ class OrganizationHierarchyTest extends TestCase
         });
 
         try {
-            $move->handle($unit, $second, 'Przeniesienie');
+            $this->asSystem(fn () => $move->handle($unit, $second, 'Przeniesienie'));
             $this->fail('Move completed without audit.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Audit unavailable', $exception->getMessage());
         }
         $this->assertNull($old->fresh()->valid_to);
         $this->assertDatabaseCount('organization_parents', 1);
-        $this->assertDatabaseCount('audit_entries', $auditCount);
+        $this->assertSame($auditCount, AuditEntry::query()->where('action', '!=', 'access.granted')->count(), 'Wpisy zmian (bez decyzji o dostępie).');
     }
 
     public function test_existing_assignment_cannot_be_rewritten_or_deleted(): void
     {
         [$first, $second, $unit] = Organization::factory()->count(3)->create()->all();
-        $period = $this->app->make(MoveOrganization::class)->handle($unit, $first, 'Struktura');
+        $period = $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($unit, $first, 'Struktura'));
         try {
             $this->app->make(AuditReason::class)->because('Nadpisanie', fn () => $period->forceFill(['parent_id' => $second->id])->save());
             $this->fail('History overwritten.');

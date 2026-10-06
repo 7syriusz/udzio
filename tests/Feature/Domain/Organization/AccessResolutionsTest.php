@@ -41,12 +41,13 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use LogicException;
 use Tests\Fixtures\AnyScopeTestPurpose;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 /** E3.7b: consequences of the Z-034a resolutions (Jakub, 2026-10-05). */
 class AccessResolutionsTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     private Organization $company;
 
@@ -73,7 +74,7 @@ class AccessResolutionsTest extends TestCase
         parent::setUp();
         $this->travelTo(CarbonImmutable::parse('2026-01-01 10:00:00', 'UTC'));
         [$this->company, $this->office, $this->foreign] = Organization::factory()->count(3)->create()->all();
-        $this->app->make(MoveOrganization::class)->handle($this->office, $this->company, 'Struktura');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->office, $this->company, 'Struktura'));
         $this->system(function (): void {
             $create = $this->app->make(CreateAccessRole::class);
             $this->accountant = $create->handle($this->company, 'Księgowy', ['audit.view'], 'Rola');
@@ -165,7 +166,7 @@ class AccessResolutionsTest extends TestCase
     public function test_candidate_search_stays_inside_the_grantable_scope(): void
     {
         $warehouse = Organization::factory()->create();
-        $this->app->make(MoveOrganization::class)->handle($warehouse, $this->company, 'Struktura');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($warehouse, $this->company, 'Struktura'));
         $this->member('Celina', $warehouse, 'celina@example.pl');
         $this->travel(1)->minute();
 
@@ -293,7 +294,7 @@ class AccessResolutionsTest extends TestCase
         $this->travel(1)->minute();
         $officeAudit = AuditEntry::query()->where('organization_id', $this->office->public_id)->count();
 
-        $this->app->make(ArchiveOrganization::class)->handle($this->office, 'Likwidacja');
+        $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($this->office, 'Likwidacja'));
         $this->travel(1)->minute();
 
         $this->assertSame([], $this->visibility()->memberships($admin)->pluck('id')->all(), 'Bez prawa do historii jednostka znika.');
@@ -310,7 +311,7 @@ class AccessResolutionsTest extends TestCase
         $beforeMove = now()->toImmutable();
         $this->travel(1)->minute();
 
-        $this->app->make(MoveOrganization::class)->handle($this->office, $this->foreign, 'Przekazanie');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->office, $this->foreign, 'Przekazanie'));
         $this->travel(1)->minute();
 
         $this->assertNotContains($this->office->id, $this->visibility()->organizations($historian)->pluck('id')->all());
@@ -382,7 +383,7 @@ class AccessResolutionsTest extends TestCase
         $formerAssignment = $this->grant($formerHistorian, $this->historian, $this->company);
         $beforeMove = now()->addSecond()->toImmutable();
         $this->travel(1)->minute();
-        $this->app->make(MoveOrganization::class)->handle($this->office, $this->foreign, 'Przekazanie');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->office, $this->foreign, 'Przekazanie'));
         $this->system(fn () => $this->app->make(RevokeRoleAssignment::class)->handle($formerAssignment, 'Koniec zatrudnienia'));
         $this->travel(1)->minute();
 

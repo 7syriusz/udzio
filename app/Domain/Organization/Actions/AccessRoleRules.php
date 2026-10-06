@@ -41,7 +41,8 @@ final class AccessRoleRules
 
     /**
      * Role-granting catalog of a managing role (E3.6a). Each rule names one role of the same organization
-     * or a unit below it, and says whether it may be granted below the manager's own scope unit, for at most
+     * or a unit below it — or `*`: every role of that organization and the units below it, also roles defined
+     * later (E3.10a, Z-043) — and says whether it may be granted below the manager's own scope unit, for at most
      * how many days, and whether the assignment needs approval. A catalog requires `roles.assign`.
      *
      * @param  list<array{role: string, include_descendants?: bool, max_days?: int|null, requires_approval?: bool}>  $rules
@@ -67,12 +68,12 @@ final class AccessRoleRules
         $allowedOwners = [$owner->id, ...app(OrganizationHierarchy::class)->descendantsAt($owner, now('UTC'))->modelKeys()];
         $normalized = [];
         foreach ($validated as $rule) {
-            $role = AccessRole::query()->where('public_id', $rule['role'])->first();
-            if ($role === null || $role->status !== AccessRoleStatus::Active || ! in_array($role->organization_id, $allowedOwners, true)) {
+            $role = $rule['role'] === AccessRole::ANY_ROLE ? null : AccessRole::query()->where('public_id', $rule['role'])->first();
+            if ($rule['role'] !== AccessRole::ANY_ROLE && ($role === null || $role->status !== AccessRoleStatus::Active || ! in_array($role->organization_id, $allowedOwners, true))) {
                 throw ValidationException::withMessages(['grant_rules' => __('organization.validation.grant_catalog_foreign_role')]);
             }
             $normalized[] = [
-                'role' => $role->public_id,
+                'role' => $role?->public_id ?? AccessRole::ANY_ROLE,
                 'include_descendants' => (bool) ($rule['include_descendants'] ?? false),
                 'max_days' => isset($rule['max_days']) ? (int) $rule['max_days'] : null,
                 'requires_approval' => (bool) ($rule['requires_approval'] ?? false),

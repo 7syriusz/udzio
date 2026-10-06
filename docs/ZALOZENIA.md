@@ -756,3 +756,46 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - **Brak obejścia MFA:** reset hasła (odzyskanie konta) i zmiana hasła nie zmieniają MFA, a logowanie nadal wymaga
   kodu; adresu e-mail konta nie da się zmienić (Fortify `updateProfileInformation` wyłączone, ekran konta zmienia tylko
   dane PERSON); drugie konto na ten sam adres nie powstaje. Wyłączenie MFA i nowe kody wymagają potwierdzenia hasła.
+
+## Z-039 — Administrator platformy, instalacja i reset MFA (E3.8b, 2026-10-06)
+
+- **Administrator platformy ≠ administrator organizacji.** Uprawnienia platformy (`PlatformPermission`:
+  `platform.administrators.manage`, `platform.mfa.reset`) dają wyłącznie przypisania ról platformy
+  (`platform_role_assignments`, relacja w czasie E1.5); decyduje `PlatformAccess`, oddzielnie od `AccessDecider`.
+  Żadna rola organizacji (także rola ze wszystkimi uprawnieniami organizacji ani założyciel organizacji) nie daje
+  uprawnień platformy, a rola platformy nie daje uprawnień w organizacjach. Role platformy są zdefiniowane
+  w `config/platform.php` (na razie jedna: `administrator`).
+- **Każde uprawnienie platformy jest uprzywilejowane:** działa tylko z potwierdzonym e-mailem i potwierdzonym MFA
+  (`PrivilegedAccessPolicy`, Z-038), niezależnie od nazwy i definicji roli. Odmowy jak w Z-038 (audyt, polski
+  komunikat).
+- **Pierwszy administrator — jednorazowa instalacja:** `php artisan platform:install-administrator <e-mail>
+  --given-name= --family-name=`. Komenda nie przyjmuje hasła; konto dostaje losowe, nieznane nikomu hasło,
+  a na adres trafiają link do ustawienia hasła i link potwierdzający e-mail. Rola platformy działa dopiero po
+  potwierdzeniu e-maila i włączeniu MFA. Instalacja **nie** tworzy organizacji (organizacje powstaną przez
+  administratora platformy — E3.10) ani żadnych danych przykładowych; seeder pozostaje pusty.
+  - Adres, pod którym istnieje już konto, jest odrzucany — istniejące konto nigdy nie zostaje awansowane
+    (zabezpieczenie przed zajęciem adresu przez inną osobę przed instalacją).
+  - Jednorazowość: tabela `platform_installations` ma najwyżej jeden rekord (id = 1, wyzwalacze blokują inny
+    identyfikator i usunięcie). Rekord jest zapisywany jako pierwszy w transakcji instalacji, więc równoczesne
+    uruchomienia czekają na siebie; przegrany jest odrzucany (`installation_completed`), a jego transakcja nie
+    zostawia konta. Ponowne użycie po zakończeniu — odmowa z audytem.
+  - Audyt: `system_authority.entered` (cel `platform.install`), `access.granted`, `account.created`,
+    `platform_role_assignment.created`, `platform.installed` (aktor: proces komendy).
+- **`SystemAuthority` przy instalacji:** cel `platform.install` z jedynym uprawnieniem `platform.install`, bez
+  zakresu organizacji (`SystemPurpose` dopuszcza pusty zakres tylko dla celu z samymi uprawnieniami platformy),
+  aktywny tylko na czas jednej operacji (`run`). `PlatformAccess` uznaje proces systemowy wyłącznie dla
+  `platform.install` i tylko przed zakończeniem instalacji; każde inne uprawnienie platformy dla procesu =
+  odmowa `system_authority_not_for_platform`. Uprawnienia `platform.install` nie ma żadna rola.
+- **Reset MFA** (`ResetAccountMfa`): wymaga `platform.mfa.reset` (wraz z MFA wykonującego), opisu potwierdzenia
+  tożsamości posiadacza konta (obowiązkowy, zapisywany w audycie) i powodu; nikt nie resetuje własnego MFA swoją
+  rolą (`own_account`) — ta sama zasada dotyczy nadania sobie roli platformy (`GrantPlatformRole`). Skutek:
+  usunięcie sekretu TOTP i wszystkich kodów odzyskiwania, zakończenie wszystkich sesji i unieważnienie
+  „zapamiętaj mnie”; audyt `account.mfa_reset` (wykonujący, konto, powód, potwierdzenie tożsamości, liczba
+  zakończonych sesji). **Do wdrożenia przy ekranie (E3.10/E3.11):** trasa resetu za `password.confirm`
+  (ponowne potwierdzenie hasła wykonującego) i `mfa`.
+- **Brak konta awaryjnego i hasła uniwersalnego.** Procedury awaryjnej nie utworzono. Utrata MFA przez jedynego
+  administratora wymaga drugiego administratora platformy — zalecenie: co najmniej dwóch administratorów
+  platformy. Jeśli procedura awaryjna będzie potrzebna, musi być jawna, ograniczona czasowo, możliwa do
+  wyłączenia i audytowana (rodzaj audytu `access.privileged` jest przygotowany, Z-037) — decyzja do Jakuba.
+- **Otwarte (poza E3.8):** `CreateOrganization` nie ma jeszcze kontroli uprawnień — przy ekranie organizacji (E3.10)
+  tworzenie organizacji przejdzie przez uprawnienie platformy.

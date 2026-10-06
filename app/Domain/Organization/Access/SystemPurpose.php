@@ -3,6 +3,7 @@
 namespace App\Domain\Organization\Access;
 
 use App\Domain\Organization\Enums\Permission;
+use App\Domain\Organization\Enums\PlatformPermission;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\OrganizationHierarchy;
 use App\Models\User;
@@ -14,18 +15,20 @@ use InvalidArgumentException;
  * permissions it needs and the units it works in (each with its descendants at the moment). A process started
  * for an account (export, recurring report) names it in `onBehalfOf`: every decision then also requires that
  * account's current permission, so the process never reaches beyond the person who ordered it.
+ * A purpose with platform permissions only (installation, E3.8b) has no organization scope and so reaches no
+ * organization data.
  */
 class SystemPurpose
 {
-    /** @var list<Permission> */
+    /** @var list<Permission|PlatformPermission> */
     public readonly array $permissions;
 
     /** @var list<int> */
     public readonly array $organizationIds;
 
     /**
-     * @param  list<Permission>  $permissions
-     * @param  list<Organization|int>  $organizations  roots of the scope
+     * @param  list<Permission|PlatformPermission>  $permissions
+     * @param  list<Organization|int>  $organizations  roots of the scope (none for platform permissions only)
      */
     public function __construct(
         public readonly string $purpose,
@@ -37,14 +40,15 @@ class SystemPurpose
         if (trim($purpose) === '' || trim($basis) === '') {
             throw new InvalidArgumentException('System authority requires a purpose and a basis.');
         }
-        if ($permissions === [] || $organizations === []) {
+        $platformOnly = $permissions !== [] && array_filter($permissions, fn ($permission) => $permission instanceof Permission) === [];
+        if ($permissions === [] || ($organizations === [] && ! $platformOnly)) {
             throw new InvalidArgumentException('System authority requires declared permissions and a declared scope.');
         }
         $this->permissions = array_values($permissions);
         $this->organizationIds = array_values(array_map(fn (Organization|int $organization) => $organization instanceof Organization ? $organization->id : $organization, $organizations));
     }
 
-    public function allows(Permission $permission): bool
+    public function allows(Permission|PlatformPermission $permission): bool
     {
         return in_array($permission, $this->permissions, true);
     }
@@ -73,7 +77,7 @@ class SystemPurpose
         return [
             'purpose' => $this->purpose,
             'basis' => $this->basis,
-            'permissions' => array_map(fn (Permission $permission) => $permission->value, $this->permissions),
+            'permissions' => array_map(fn (Permission|PlatformPermission $permission) => $permission->value, $this->permissions),
             'organizations' => Organization::query()->whereKey($this->organizationIds)->orderBy('id')->pluck('public_id')->all(),
             'on_behalf_of_account_id' => $this->onBehalfOf?->getKey(),
         ];

@@ -50,5 +50,14 @@ return [
     'audit' => [
         'view' => 'podgląd audytu',
     ],
+    'platform' => [
+        'administrators' => [
+            'manage' => 'zarządzanie administratorami platformy',
+        ],
+        'mfa' => [
+            'reset' => 'reset uwierzytelniania dwuskładnikowego innego konta',
+        ],
+        'install' => 'utworzenie pierwszego administratora platformy (tylko instalacja)',
+    ],
 
 ];

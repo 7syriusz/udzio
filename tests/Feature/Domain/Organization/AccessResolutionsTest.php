@@ -83,7 +83,7 @@ class AccessResolutionsTest extends TestCase
                 ['role' => $this->accountant->public_id, 'include_descendants' => true, 'max_days' => 365],
             ]);
         });
-        $this->hr = User::factory()->create();
+        $this->hr = User::factory()->withTwoFactor()->create();
         $this->grant($this->hr, $this->hrManager, $this->company);
         [$this->anna, $this->annaInOffice] = $this->member('Anna', $this->office, 'anna.nowak@example.pl');
         $this->member('Bartek', $this->foreign, 'bartek@example.pl');
@@ -109,7 +109,7 @@ class AccessResolutionsTest extends TestCase
     private function member(string $given, Organization $unit, string $email): array
     {
         $person = $this->app->make(RegisterPerson::class)->handle(['given_name' => $given, 'family_name' => 'Nowak']);
-        User::factory()->create(['person_id' => $person->id, 'email' => $email]);
+        User::factory()->withTwoFactor()->create(['person_id' => $person->id, 'email' => $email]);
 
         return [$person, $this->app->make(AdmitMember::class)->handle($person, $unit, 'member', 'Przyjęcie')];
     }
@@ -195,7 +195,7 @@ class AccessResolutionsTest extends TestCase
     public function test_candidate_search_never_reaches_the_whole_account_base(): void
     {
         $loner = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Anastazja', 'family_name' => 'Nowak']);
-        User::factory()->create(['person_id' => $loner->id, 'email' => 'anastazja@example.pl']);
+        User::factory()->withTwoFactor()->create(['person_id' => $loner->id, 'email' => 'anastazja@example.pl']);
         $this->app->make(EndMembership::class)->handle($this->annaInOffice, 'Rezygnacja');
         $this->travel(1)->minute();
 
@@ -214,7 +214,7 @@ class AccessResolutionsTest extends TestCase
         $this->candidates('nikt@example.pl');
         $this->denied(fn () => $this->candidates('Bar', $this->foreign));
 
-        $otherManager = User::factory()->create();
+        $otherManager = User::factory()->withTwoFactor()->create();
         $this->grant($otherManager, $this->hrManager, $this->company);
         $this->assertCount(1, $this->app->make(RoleCandidateSearch::class)->search($otherManager, $this->accountant, $this->office, 'Ann'), 'Limit liczony osobno dla każdego konta.');
 
@@ -229,7 +229,7 @@ class AccessResolutionsTest extends TestCase
 
     public function test_roles_outside_the_catalog_stay_hidden_without_roles_audit(): void
     {
-        $adminInOffice = $this->grant(User::factory()->create(), $this->administrator, $this->office);
+        $adminInOffice = $this->grant(User::factory()->withTwoFactor()->create(), $this->administrator, $this->office);
 
         $this->assertNotContains($adminInOffice->id, $this->visibility()->roleAssignments($this->hr)->pluck('id')->all());
 
@@ -239,9 +239,9 @@ class AccessResolutionsTest extends TestCase
 
     public function test_former_members_need_the_history_permission(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->withTwoFactor()->create();
         $this->grant($admin, $this->administrator, $this->company);
-        $historian = User::factory()->create();
+        $historian = User::factory()->withTwoFactor()->create();
         $this->grant($historian, $this->historian, $this->company);
         $this->app->make(EndMembership::class)->handle($this->annaInOffice, 'Rezygnacja');
         $this->travel(1)->minute();
@@ -263,7 +263,7 @@ class AccessResolutionsTest extends TestCase
     {
         $child = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Zosia', 'family_name' => 'Nowak', 'birth_date' => '2015-03-01']);
         $this->app->make(AdmitMember::class)->handle($child, $this->office, 'member', 'Przyjęcie');
-        $parent = User::factory()->create(['person_id' => $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Maria', 'family_name' => 'Nowak'])->id]);
+        $parent = User::factory()->withTwoFactor()->create(['person_id' => $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Maria', 'family_name' => 'Nowak'])->id]);
         $representation = $this->app->make(GrantRepresentation::class)->handle($parent->person, $child, [RepresentationScope::ProfileView], RepresentationMethod::Document, 'akt urodzenia', now()->subSecond(), 'Opiekun');
         $acting = $this->app->make(ActOnBehalf::class);
 
@@ -285,9 +285,9 @@ class AccessResolutionsTest extends TestCase
 
     public function test_history_of_an_archived_unit_stays_available_with_the_history_permission(): void
     {
-        $historian = User::factory()->create();
+        $historian = User::factory()->withTwoFactor()->create();
         $this->grant($historian, $this->historian, $this->company);
-        $admin = User::factory()->create();
+        $admin = User::factory()->withTwoFactor()->create();
         $this->grant($admin, $this->administrator, $this->company);
         $beforeArchive = now()->toImmutable();
         $this->travel(1)->minute();
@@ -305,7 +305,7 @@ class AccessResolutionsTest extends TestCase
 
     public function test_moving_a_unit_does_not_rewrite_where_it_was(): void
     {
-        $historian = User::factory()->create();
+        $historian = User::factory()->withTwoFactor()->create();
         $this->grant($historian, $this->historian, $this->company);
         $beforeMove = now()->toImmutable();
         $this->travel(1)->minute();
@@ -320,7 +320,7 @@ class AccessResolutionsTest extends TestCase
 
     public function test_protected_reads_exports_and_denials_are_audited(): void
     {
-        $officer = User::factory()->create();
+        $officer = User::factory()->withTwoFactor()->create();
         $this->grant($officer, $this->role('Dane chronione', ['people.protected.view', 'members.view', 'data.export']), $this->company);
 
         $this->assertSame(['given_name' => 'Anna'], $this->visibility()->readProtected($officer, $this->anna, ['given_name'], 'weryfikacja'));
@@ -340,7 +340,7 @@ class AccessResolutionsTest extends TestCase
 
     public function test_ordinary_allowed_list_is_not_audited_but_a_bulk_read_is(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->withTwoFactor()->create();
         $this->grant($admin, $this->administrator, $this->company);
         $before = $this->auditCount();
 
@@ -356,7 +356,7 @@ class AccessResolutionsTest extends TestCase
 
     public function test_an_earlier_date_does_not_bring_back_lost_access(): void
     {
-        $former = User::factory()->create();
+        $former = User::factory()->withTwoFactor()->create();
         $assignment = $this->grant($former, $this->historian, $this->company);
         $whenAllowed = now()->addSecond()->toImmutable();
         $this->travel(1)->minute();
@@ -371,14 +371,14 @@ class AccessResolutionsTest extends TestCase
         $this->assertSame('history_not_permitted', AuditEntry::on('audit')->where(['action' => 'access.denied', 'subject_id' => 'history'])->latest('id')->first()->after_values['reason']);
         $this->assertTrue($this->app->make(AccessDecider::class)->decide($former, Permission::MembersView, $this->office, $whenAllowed)->allowed, 'Techniczne odtworzenie decyzji pozostaje możliwe — to nie jest prawo przeglądania.');
 
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->withTwoFactor()->create();
         $this->grant($viewer, $this->administrator, $this->company);
         $this->denied(fn () => $this->visibility()->memberships($viewer, $whenAllowed));
     }
 
     public function test_history_checks_todays_right_first_and_then_uses_the_past_structure(): void
     {
-        $formerHistorian = User::factory()->create();
+        $formerHistorian = User::factory()->withTwoFactor()->create();
         $formerAssignment = $this->grant($formerHistorian, $this->historian, $this->company);
         $beforeMove = now()->addSecond()->toImmutable();
         $this->travel(1)->minute();
@@ -386,9 +386,9 @@ class AccessResolutionsTest extends TestCase
         $this->system(fn () => $this->app->make(RevokeRoleAssignment::class)->handle($formerAssignment, 'Koniec zatrudnienia'));
         $this->travel(1)->minute();
 
-        $newHistorian = User::factory()->create();
+        $newHistorian = User::factory()->withTwoFactor()->create();
         $this->grant($newHistorian, $this->historian, $this->company);
-        $foreignHistorian = User::factory()->create();
+        $foreignHistorian = User::factory()->withTwoFactor()->create();
         $this->grant($foreignHistorian, $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->foreign, 'Archiwista', ['organization.view', 'members.view', 'members.history.view', 'structure.history.view'], 'Rola')), $this->foreign);
         $this->travel(1)->minute();
 
@@ -411,8 +411,8 @@ class AccessResolutionsTest extends TestCase
         $approverRole = $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->company, 'Zatwierdzający', ['roles.assign'], 'Rola', [
             ['role' => $viewer->public_id, 'include_descendants' => true, 'requires_approval' => true],
         ]));
-        $requester = User::factory()->create(['given_name' => 'Ewa', 'family_name' => 'Kadrowa']);
-        $approver = User::factory()->create();
+        $requester = User::factory()->withTwoFactor()->create(['given_name' => 'Ewa', 'family_name' => 'Kadrowa']);
+        $approver = User::factory()->withTwoFactor()->create();
         $this->grant($requester, $approverRole, $this->company);
         $this->grant($approver, $approverRole, $this->company);
         $this->travel(1)->minute();
@@ -447,7 +447,7 @@ class AccessResolutionsTest extends TestCase
         $this->assertSame(1, AuditEntry::on('audit')->where(['action' => 'system_authority.entered', 'subject_id' => 'Import ról biura'])->count());
 
         $this->denied(fn () => $authority->run($purpose, fn () => $this->app->make(CreateAccessRole::class)->handle($this->company, 'Firma', ['members.view'], 'Poza zakresem')));
-        $this->denied(fn () => $authority->run($purpose, fn () => $this->app->make(AssignRole::class)->handle(User::factory()->create(), $role, $this->office, ScopeInheritance::UnitOnly, null, 'Niezadeklarowane uprawnienie')));
+        $this->denied(fn () => $authority->run($purpose, fn () => $this->app->make(AssignRole::class)->handle(User::factory()->withTwoFactor()->create(), $role, $this->office, ScopeInheritance::UnitOnly, null, 'Niezadeklarowane uprawnienie')));
 
         $members = $authority->run($purpose, fn () => $this->visibility()->systemMemberships()->pluck('id')->all());
         $this->assertSame([$this->annaInOffice->id], $members);
@@ -461,7 +461,7 @@ class AccessResolutionsTest extends TestCase
     {
         $authority = $this->app->make(SystemAuthority::class);
         $ordered = new SystemPurpose('Raport cykliczny', 'zlecenie kadr', [Permission::RolesAssign], [$this->company], onBehalfOf: $this->hr);
-        $employee = User::factory()->create();
+        $employee = User::factory()->withTwoFactor()->create();
 
         $authority->run($ordered, fn () => $this->app->make(AssignRole::class)->handle($employee, $this->accountant, $this->office, ScopeInheritance::UnitOnly, now()->addDays(10), 'Zlecone'));
         $this->assertSame(1, RoleAssignment::query()->where('user_id', $employee->id)->count());
@@ -469,7 +469,7 @@ class AccessResolutionsTest extends TestCase
         $this->system(fn () => $this->app->make(RevokeRoleAssignment::class)->handle(RoleAssignment::query()->where('user_id', $this->hr->id)->sole(), 'Zmiana stanowiska'));
         $this->travel(1)->minute();
 
-        $this->denied(fn () => $authority->run($ordered, fn () => $this->app->make(AssignRole::class)->handle(User::factory()->create(), $this->accountant, $this->office, ScopeInheritance::UnitOnly, now()->addDays(10), 'Zlecone')));
+        $this->denied(fn () => $authority->run($ordered, fn () => $this->app->make(AssignRole::class)->handle(User::factory()->withTwoFactor()->create(), $this->accountant, $this->office, ScopeInheritance::UnitOnly, now()->addDays(10), 'Zlecone')));
         $this->assertSame('ordering_account_not_permitted', AuditEntry::on('audit')->where('action', 'access.denied')->latest('id')->first()->after_values['reason']);
     }
 

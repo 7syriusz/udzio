@@ -61,7 +61,7 @@ class RoleDataVisibilityTest extends TestCase
                 ['role' => $this->accountant->public_id, 'include_descendants' => true, 'max_days' => 365],
             ]);
         });
-        $this->hr = User::factory()->create();
+        $this->hr = User::factory()->withTwoFactor()->create();
         $this->grant($this->hr, $this->hrManager, $this->company, ScopeInheritance::UnitAndDescendants);
         $this->travel(1)->minute();
     }
@@ -83,10 +83,10 @@ class RoleDataVisibilityTest extends TestCase
 
     public function test_manager_sees_assignments_only_of_catalog_roles_in_managed_units(): void
     {
-        $accountantInOffice = $this->grant(User::factory()->create(), $this->accountant, $this->office);
-        $adminInOffice = $this->grant(User::factory()->create(), $this->administrator, $this->office);
+        $accountantInOffice = $this->grant(User::factory()->withTwoFactor()->create(), $this->accountant, $this->office);
+        $adminInOffice = $this->grant(User::factory()->withTwoFactor()->create(), $this->administrator, $this->office);
         $foreignRole = $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->foreign, 'Księgowy', ['audit.view'], 'Rola'));
-        $foreignAssignment = $this->grant(User::factory()->create(), $foreignRole, $this->foreign);
+        $foreignAssignment = $this->grant(User::factory()->withTwoFactor()->create(), $foreignRole, $this->foreign);
 
         $visible = $this->visibility()->roleAssignments($this->hr)->pluck('id')->all();
 
@@ -100,7 +100,7 @@ class RoleDataVisibilityTest extends TestCase
     {
         $person = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Anna', 'family_name' => 'Nowak']);
         $this->app->make(AdmitMember::class)->handle($person, $this->office, 'member', 'Przyjęcie');
-        $admin = User::factory()->create();
+        $admin = User::factory()->withTwoFactor()->create();
         $this->grant($admin, $this->administrator, $this->company, ScopeInheritance::UnitAndDescendants);
         $this->travel(1)->minute();
 
@@ -111,9 +111,9 @@ class RoleDataVisibilityTest extends TestCase
 
     public function test_role_definitions_visible_to_role_managers_catalog_holders_and_holders(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->withTwoFactor()->create();
         $this->grant($admin, $this->administrator, $this->company);
-        $plain = User::factory()->create();
+        $plain = User::factory()->withTwoFactor()->create();
         $this->grant($plain, $this->accountant, $this->office);
         $this->travel(1)->minute();
 
@@ -130,7 +130,7 @@ class RoleDataVisibilityTest extends TestCase
             ['role' => $viewer->public_id, 'include_descendants' => true, 'requires_approval' => true],
         ]));
         $this->travel(1)->minute();
-        $grantee = User::factory()->create();
+        $grantee = User::factory()->withTwoFactor()->create();
 
         $requested = $this->app->make(ActorContext::class)->runAs(Actor::account((string) $this->hr->id),
             fn () => $this->app->make(AssignRole::class)->handle($grantee, $viewer, $this->office, ScopeInheritance::UnitOnly, null, 'Wniosek kadr'));
@@ -158,7 +158,7 @@ class RoleDataVisibilityTest extends TestCase
 
     public function test_visibility_can_be_reconstructed_for_a_past_moment(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->withTwoFactor()->create();
         $this->grant($admin, $this->administrator, $this->company, ScopeInheritance::UnitAndDescendants);
         // Since E3.7b a past moment needs today's right to that history.
         $history = $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->company, 'Historia', ['structure.history.view'], 'Rola'));
@@ -174,7 +174,7 @@ class RoleDataVisibilityTest extends TestCase
 
     public function test_refused_reads_are_one_decision_per_operation_and_leak_nothing(): void
     {
-        $hidden = $this->grant(User::factory()->create(), $this->administrator, $this->office);
+        $hidden = $this->grant(User::factory()->withTwoFactor()->create(), $this->administrator, $this->office);
 
         $this->app->make(OperationCorrelation::class)->within(function () use ($hidden): void {
             foreach (range(1, 3) as $attempt) {

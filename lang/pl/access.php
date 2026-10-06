@@ -8,6 +8,8 @@ return [
     */
 
     'unauthorized' => 'Nie masz uprawnień do wykonania tej czynności.',
-    'mfa_required' => 'Ta część wymaga włączonego uwierzytelniania dwuskładnikowego.',
+    'mfa_required' => 'Ta czynność wymaga uwierzytelniania dwuskładnikowego. Włącz je w ustawieniach bezpieczeństwa konta, a uprawnienia zaczną działać.',
+    'email_unverified' => 'Potwierdź adres e-mail konta, aby korzystać z uprawnień przypisanej roli.',
+    'mfa_setup' => 'Przejdź do ustawień bezpieczeństwa konta',
 
 ];

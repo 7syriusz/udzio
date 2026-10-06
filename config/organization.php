@@ -19,6 +19,19 @@ return [
         'max_per_minute' => 20,
     ],
 
+    'privileged_access' => [
+        // Permissions treated as privileged (E3.8): a role holding any of them gives nothing until the account
+        // has a verified e-mail and confirmed MFA. A role may also require MFA by its own policy (requires_mfa).
+        'permissions' => [
+            'roles.manage',
+            'roles.assign',
+            'roles.audit.view',
+            'audit.view',
+            'people.protected.view',
+            'data.export',
+        ],
+    ],
+
     'reads' => [
         // A list read returning more rows than this is a bulk read and is audited (E3.7b).
         'bulk_threshold' => 200,

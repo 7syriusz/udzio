@@ -8,6 +8,9 @@
 <body style="font-family: sans-serif; margin: 4rem auto; max-width: 32rem; padding: 0 1rem;">
     <h1>{{ \App\Http\Exceptions\UserFacingMessage::for($exception) }}</h1>
     <p>{{ __('errors.code', ['status' => $exception->getStatusCode()]) }}</p>
+    @if ($exception->getMessage() === 'access.mfa_required')
+        <p><a href="{{ route('account.security') }}">{{ __('access.mfa_setup') }}</a></p>
+    @endif
     <p><a href="{{ url('/') }}">{{ __('errors.home') }}</a></p>
 </body>
 </html>

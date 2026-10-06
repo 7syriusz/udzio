@@ -13,7 +13,10 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-/** Defines a role (`roles.manage`, authorized centrally by AccessDecider) and publishes its first version. */
+/**
+ * Defines a role (`roles.manage`, authorized centrally by AccessDecider) and publishes its first version.
+ * `$requiresMfa` is the role's security policy (E3.8); privileged permissions require MFA regardless.
+ */
 final class CreateAccessRole
 {
     public function __construct(
@@ -26,13 +29,13 @@ final class CreateAccessRole
      * @param  list<string>  $permissions
      * @param  list<array{role: string, include_descendants?: bool, max_days?: int|null, requires_approval?: bool}>  $grantRules
      */
-    public function handle(Organization $organization, string $name, array $permissions, string $reason, array $grantRules = []): AccessRole
+    public function handle(Organization $organization, string $name, array $permissions, string $reason, array $grantRules = [], bool $requiresMfa = false): AccessRole
     {
         $name = AccessRoleRules::name($name);
         $permissions = AccessRoleRules::permissions($permissions);
 
         try {
-            return $this->operation->within(fn () => $this->reason->because($reason, fn () => DB::transaction(function () use ($organization, $name, $permissions, $grantRules): AccessRole {
+            return $this->operation->within(fn () => $this->reason->because($reason, fn () => DB::transaction(function () use ($organization, $name, $permissions, $grantRules, $requiresMfa): AccessRole {
                 $current = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->firstOrFail();
                 $this->access->authorizeRoleDefinition($current);
                 if ($current->status !== OrganizationStatus::Active) {
@@ -43,6 +46,7 @@ final class CreateAccessRole
                     'name' => $name,
                     'permissions' => $permissions,
                     'grant_rules' => AccessRoleRules::grantRules($grantRules, $current, $permissions),
+                    'requires_mfa' => $requiresMfa,
                     'status' => AccessRoleStatus::Active,
                 ]);
                 $role->publishVersion();

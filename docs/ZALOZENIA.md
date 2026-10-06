@@ -244,9 +244,8 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   z nową. Do tego czasu konto nie ma dostępu do danych żadnej osoby.
 - **Jedna PERSON — najwyżej jedno konto:** unikalne `users.person_id` + `LinkAccountToPerson` (blokady,
   konflikt `AccountLinkConflict`). Powiązane konto nie przechodzi do innej osoby (ochrona w modelu).
-- **F — hasło:** co najmniej 12 znaków, bez wymogów składu (zalecenie NIST SP 800-63B). Sprawdzanie
-  w bazie wycieków (HIBP) — do rozważenia w E2.5 (wymaga połączenia zewnętrznego). Zmiana:
-  `AppServiceProvider::boot` (`Password::defaults`).
+- **F — hasło:** zastąpione przez Z-041 (E3.8e): co najmniej 15 znaków, lista haseł popularnych, kontrola wycieków
+  (HIBP), Argon2id. Zmiana: `config/identity.php` (`passwords`) i `AppServiceProvider::boot` (`Password::defaults`).
 - **F — e-mail logowania:** zapisywany małymi literami, unikalny dla konta. Logowanie ignoruje wielkość liter.
 - **Audyt zapisów frameworka:** rotacja tokenu „zapamiętaj mnie” i przeliczenie skrótu hasła idą przez
   `AuditedUserProvider` z jawnym powodem technicznym; wartości SECRET są redagowane.
@@ -834,7 +833,7 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 4. **Potwierdzony e-mail** jest wymagany do: uprawnień z przypisanej roli, zarządzania organizacją i uprawnień
    platformy. Nie jest automatycznie wymagany do publicznych czynności uczestnika (zasady zapisu bez konta —
    scenariusz).
-5. **Hasła wygodne dla użytkownika** (stan obecny i plan — poniżej; wdrożenie w podetapie E3.8e po akceptacji planu):
+5. **Hasła wygodne dla użytkownika** (wdrożone w E3.8e — Z-041; poniżej stan sprzed wdrożenia i plan):
    bez reguł składu (wielka/mała litera, cyfra, znak specjalny); spacje i polskie znaki dozwolone; długie frazy;
    bez okresowej zmiany; wklejanie z menedżera haseł dozwolone; blokada haseł popularnych i ujawnionych w wyciekach;
    limit prób logowania; nieodwracalny skrót do haseł, preferencyjnie Argon2id z indywidualną solą; nigdy
@@ -866,3 +865,39 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 7. **CI:** przed oznaczeniem E3 jako zakończonego wynik CI na GitHubie jest sprawdzany (publiczne API GitHub Actions
    — działa bez `gh`) albo potwierdzany ręcznie przez Jakuba. Stan 2026-10-06: E3.8a i E3.8b — sukces na gałęziach
    i na `main` (`3bd74b9`).
+
+## Z-041 — Polityka haseł i Argon2id (E3.8e, decyzje Jakuba 2026-10-06)
+
+- **Długość:** co najmniej 15 znaków dla wszystkich kont (także z MFA), najwyżej 255 — liczone w znakach widocznych
+  dla użytkownika (`mb_strlen`), spacje się wliczają. Bez reguł składu (wielka litera, cyfra, znak specjalny).
+  Spacje i polskie znaki dozwolone; hasło nie jest przycinane ani zmieniane i jest porównywane dokładnie.
+  Komunikaty: „Hasło musi mieć co najmniej 15 znaków. Możesz użyć łatwego do zapamiętania zdania ze spacjami.”,
+  „Hasło może mieć najwyżej 255 znaków.” Ustawienia: `identity.passwords.min_length` / `max_length`.
+- **Hasła popularne i oczywiste — zawsze, lokalnie** (`NotCommonPassword`, `resources/security/common-passwords.txt`):
+  porównanie bez rozróżniania wielkości liter i bez spacji (samo hasło się nie zmienia); odrzucane są hasła z listy,
+  jeden znak lub krótki fragment (do 4 znaków) powtórzony, ciągi klawiatury, cyfr i alfabetu (także wstecz).
+  Lista jest do uzupełniania wraz z doświadczeniem.
+- **Hasła z wycieków — Have I Been Pwned** (`NotBreachedPassword` + `BreachedPasswordVerifier`, włączane
+  `PASSWORD_BREACH_CHECK`, domyślnie włączone): metoda k-anonimowości — do usługi trafia tylko 5 pierwszych znaków
+  skrótu SHA-1, dopasowanie odbywa się lokalnie; nagłówek `Add-Padding`; limit czasu 3 s. Hasło już odrzucone
+  lokalnie nie jest wysyłane. Niedostępność usługi (błąd połączenia, przekroczenie czasu, odpowiedź inna niż
+  2xx) nie blokuje założenia konta ani ustawienia, zmiany czy resetu hasła; w logu technicznym trafia tylko rodzaj
+  awarii (bez hasła, skrótu i jego prefiksu), a użytkownik nie widzi żadnego komunikatu. Odrzucone hasło (popularne
+  albo z wycieku) — jeden komunikat: „To hasło jest zbyt popularne albo pojawiło się w wycieku danych. Wybierz
+  inne, najlepiej dłuższą frazę.” — bez nazwy wycieku i liczby wystąpień. Testy nie łączą się z siecią
+  (`Http::preventStrayRequests`, w `phpunit.xml` kontrola wyłączona i włączana w testach z atrapą usługi).
+- **Argon2id** (`config/hashing.php`): sterownik `argon2id`, parametry wg minimum OWASP: 19 MiB pamięci (19456 KiB),
+  2 przebiegi, 1 wątek — pomiar: ok. 70 ms na sprawdzenie hasła (wartości domyślne Laravel 64 MiB / 4 przebiegi:
+  ok. 430 ms i 64 MiB na każde równoczesne logowanie — za dużo dla małego serwera). Sól indywidualna w każdym
+  skrócie (PHP `password_hash`). Argon2id nie obcina długich haseł (bcrypt uwzględniał tylko 72 bajty).
+  Hasła nigdy nie są szyfrowane odwracalnie.
+- **Łagodne przejście z bcrypt:** nowe i zmieniane hasła — Argon2id; istniejące skróty bcrypt nadal działają
+  (`hashing.argon.verify = false` na czas przejścia); po poprawnym logowaniu skrót jest przeliczany na Argon2id
+  (`rehash_on_login`, zapis przez `AuditedUserProvider` z powodem „password hash recomputed”, wartość w audycie
+  `[REDACTED]`); nieudane logowanie niczego nie przelicza. Bez wymuszania zmiany hasła i bez zbiorczego
+  przeliczania. **Do wykonania później (E12):** sprawdzić liczbę kont z bcrypt (`password LIKE '$2y$%'`), a gdy nie
+  zostanie żadne — ustawić `HASH_VERIFY=true`; konta, które przez długi czas się nie logowały, mogą dostać
+  zaproszenie do ustawienia hasła (decyzja przy E12).
+- **Obecne konta z hasłem krótszym niż 15 znaków** nie są blokowane — nowe minimum obowiązuje przy zakładaniu konta
+  oraz ustawianiu, zmianie i resecie hasła. Limit prób logowania bez zmian: 5/min (e-mail + IP), kod MFA 5/min.
+- **Weryfikacja:** `PasswordPolicyTest` (11 przypadków) i `PasswordWithSpacesTest`.

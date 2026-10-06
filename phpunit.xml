@@ -23,6 +23,8 @@
         <env name="APP_FALLBACK_LOCALE" value="pl" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
+        <!-- No network in tests: the breach check is enabled per test with a faked HTTP client (E3.8e). -->
+        <env name="PASSWORD_BREACH_CHECK" value="false"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
         <!-- Local test administrator; CI may override these credentials. Database guards remain mandatory. -->

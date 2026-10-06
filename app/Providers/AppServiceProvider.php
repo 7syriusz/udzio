@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Domain\Identity\Auth\AuditedUserProvider;
 use App\Domain\Identity\Listeners\ResolvePersonOfVerifiedAccount;
+use App\Domain\Identity\Passwords\NotBreachedPassword;
+use App\Domain\Identity\Passwords\NotCommonPassword;
 use App\Domain\Organization\Access\AccessDecider;
 use App\Domain\Organization\Access\SystemAuthority;
 use App\Domain\Organization\Enums\Permission;
@@ -34,8 +36,11 @@ class AppServiceProvider extends ServiceProvider
     {
         DestructiveCommandGuard::apply();
 
-        // Z-021: length over composition rules (NIST SP 800-63B).
-        Password::defaults(fn () => Password::min(12)->max(255));
+        // Z-021, Z-041: length over composition rules (NIST SP 800-63B), local list of common passwords and,
+        // when enabled, the breach check that never blocks when the service is down.
+        Password::defaults(fn (): Password => Password::min((int) config('identity.passwords.min_length'))
+            ->max((int) config('identity.passwords.max_length'))
+            ->rules(array_filter([new NotCommonPassword, config('identity.passwords.breach_check.enabled') ? new NotBreachedPassword : null])));
 
         // Laravel Gate / policies ask the same decider: Gate::allows('members.manage', $organization).
         Gate::before(function (User $user, string $ability, array $arguments): ?bool {

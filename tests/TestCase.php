@@ -4,6 +4,7 @@ namespace Tests;
 
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 abstract class TestCase extends BaseTestCase
@@ -36,5 +37,12 @@ abstract class TestCase extends BaseTestCase
         $app['migrator']->path(base_path('tests/Fixtures/migrations'));
 
         return $app;
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Tests never reach external services (e.g. the password breach check); a test fakes what it needs.
+        Http::preventStrayRequests();
     }
 }

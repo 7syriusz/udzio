@@ -7,6 +7,19 @@ use App\Domain\Identity\Verification\MailContactCodeSender;
 */
 
 return [
+    'passwords' => [
+        // Password policy (E3.8e, Z-041): length in characters as the user sees them (spaces count), no
+        // composition rules, never trimmed. A local list of common and obvious passwords always applies; the
+        // breach check (Have I Been Pwned, k-anonymity: only 5 characters of the SHA-1 prefix leave the server)
+        // never blocks when the service is unavailable.
+        'min_length' => 15,
+        'max_length' => 255,
+        'breach_check' => [
+            'enabled' => env('PASSWORD_BREACH_CHECK', true),
+            'timeout_seconds' => 3,
+        ],
+    ],
+
     'contacts' => [
         // Country calling code added to national phone numbers written without a prefix.
         'default_phone_country_code' => '48',

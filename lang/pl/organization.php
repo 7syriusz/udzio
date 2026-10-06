@@ -7,6 +7,11 @@ return [
     */
 
     'validation' => [
+        'representation_policy_missing' => 'Organizacja nie przewiduje ustanawiania takiej reprezentacji przez uprawnioną osobę.',
+        'representation_document_required' => 'Wpisz dokument lub podstawę, którą sprawdzono.',
+        'representation_scope_not_allowed' => 'Ta podstawa nie pozwala nadać wybranego zakresu działania.',
+        'representation_until_required' => 'Podaj datę zakończenia reprezentacji (najwyżej :days dni).',
+        'representation_person_not_covered' => 'Ta podstawa nie dotyczy wskazanej osoby.',
         'organization_inactive' => 'Organizacja musi być aktywna.',
         'archived_cannot_be_renamed' => 'Nie można zmienić nazwy zarchiwizowanej organizacji.',
         'move_requires_active_units' => 'Przenoszona jednostka i nowy rodzic muszą być aktywni.',

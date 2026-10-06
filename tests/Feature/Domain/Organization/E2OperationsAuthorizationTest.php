@@ -17,11 +17,13 @@ use App\Domain\Organization\Access\SystemAuthority;
 use App\Domain\Organization\Actions\AdmitMember;
 use App\Domain\Organization\Actions\AssignRole;
 use App\Domain\Organization\Actions\CreateAccessRole;
+use App\Domain\Organization\Actions\EndMembership;
 use App\Domain\Organization\Actions\EstablishRepresentation;
 use App\Domain\Organization\Actions\MoveOrganization;
 use App\Domain\Organization\Actions\ResolvePersonLinkReviewAsOperator;
 use App\Domain\Organization\Enums\ScopeInheritance;
 use App\Domain\Organization\Models\AccessRole;
+use App\Domain\Organization\Models\Membership;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\PlatformRoleAssignment;
 use App\Domain\Platform\Actor;
@@ -32,9 +34,10 @@ use App\Domain\Platform\Models\AuditEntry;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Closure;
+use DateTimeInterface;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\URL;
-use InvalidArgumentException;
+use Illuminate\Validation\ValidationException;
 use Tests\Fixtures\AnyScopeTestPurpose;
 use Tests\TestCase;
 
@@ -73,7 +76,7 @@ class E2OperationsAuthorizationTest extends TestCase
             $this->establisher = $this->app->make(CreateAccessRole::class)->handle($this->company, 'Opieka', ['representations.establish'], 'Rola');
         });
         // Maria is a member of the office, Jan of a foreign organization, Ewa of no organization.
-        $this->maria = $this->personWithEmail('rodzina@example.test', 'Maria');
+        $this->maria = $this->personWithEmail('rodzina@example.test', 'Maria', '2014-05-01');
         $this->jan = $this->personWithEmail('rodzina@example.test', 'Jan');
         $this->ewa = $this->personWithEmail('ewa@example.test', 'Ewa');
         $this->app->make(AdmitMember::class)->handle($this->maria, $this->office, 'member', 'Przyjęcie');
@@ -86,9 +89,9 @@ class E2OperationsAuthorizationTest extends TestCase
         return $this->app->make(SystemAuthority::class)->run(new AnyScopeTestPurpose, $operation);
     }
 
-    private function personWithEmail(string $email, string $given): Person
+    private function personWithEmail(string $email, string $given, ?string $birthDate = null): Person
     {
-        $person = $this->app->make(RegisterPerson::class)->handle(['given_name' => $given, 'family_name' => 'Nowak']);
+        $person = $this->app->make(RegisterPerson::class)->handle(['given_name' => $given, 'family_name' => 'Nowak', 'birth_date' => $birthDate]);
         $contact = $this->app->make(AddContact::class)->handle($person, ContactChannel::Email, $email);
         $this->app->make(AuditReason::class)->because('verified in test', fn () => $contact->update(['verified_at' => now()]));
 
@@ -127,15 +130,29 @@ class E2OperationsAuthorizationTest extends TestCase
         return $this->app->make(ActorContext::class)->runAs(Actor::account((string) $account->id), $operation);
     }
 
-    private function resolveAs(User $operator, PersonLinkReview $review, ?Person $person): PersonLinkReview
+    private function resolveAs(User $operator, PersonLinkReview $review, ?Person $person, string $basis = 'document', string $evidence = 'Dowód osobisty sprawdzony w biurze'): PersonLinkReview
     {
-        return $this->as($operator, fn () => $this->app->make(ResolvePersonLinkReviewAsOperator::class)->handle($review, $person, 'Tożsamość potwierdzona dokumentem'));
+        return $this->as($operator, fn () => $this->app->make(ResolvePersonLinkReviewAsOperator::class)->handle($review, $person, $basis, $evidence, 'Wniosek właściciela konta'));
     }
 
-    private function establishAs(User $operator, Person $represented, RepresentationMethod $method = RepresentationMethod::RoleDecision, ?Person $representative = null): Representation
+    /** A guardian policy of the scenario: a minor member, a checked guardianship document, at most a year. */
+    private function guardianPolicy(array $overrides = []): void
+    {
+        config(['organization.representation_policies.guardian_of_minor' => [
+            'method' => 'document',
+            'document' => 'dokument potwierdzający opiekę',
+            'represented' => ['functions' => ['member'], 'max_age' => 17],
+            'scopes' => ['profile.view', 'registrations.manage', 'consents.manage'],
+            'max_days' => 365,
+            'organizations' => null,
+            ...$overrides,
+        ]]);
+    }
+
+    private function establishAs(User $operator, Person $represented, ?Person $representative = null, string $policy = 'guardian_of_minor', array $scopes = [RepresentationScope::ProfileView], ?DateTimeInterface $until = null, string $document = 'Postanowienie sądu III RC 12/26'): Representation
     {
         return $this->as($operator, fn () => $this->app->make(EstablishRepresentation::class)->handle(
-            $representative ?? $this->ewa, $represented, [RepresentationScope::ProfileView], $method, 'Decyzja nr 7/2026', now(), 'Opieka nad członkiem'));
+            $policy, $representative ?? $this->ewa, $represented, $scopes, $document, now(), $until ?? now()->addDays(200), 'Opieka nad członkiem'));
     }
 
     private function assertDenied(Closure $attempt, string $reason, int $status = 403): void
@@ -256,20 +273,58 @@ class E2OperationsAuthorizationTest extends TestCase
         $this->assertSame([], $access->candidatesFor($stranger, $review)['candidates']->all());
     }
 
-    public function test_role_establishes_a_representation_for_a_member_in_scope(): void
+    public function test_role_establishes_a_representation_under_the_scenario_policy(): void
     {
+        $this->guardianPolicy();
         $operator = $this->operator($this->establisher, $this->company);
 
-        $representation = $this->establishAs($operator, $this->maria);
+        $representation = $this->establishAs($operator, $this->maria, until: now()->addDays(200));
 
         $this->assertSame([$this->ewa->id, $this->maria->id], [$representation->representative_person_id, $representation->represented_person_id]);
-        $this->assertSame(RepresentationMethod::RoleDecision, $representation->method);
+        $this->assertSame(RepresentationMethod::Document, $representation->method);
+        $this->assertSame('Postanowienie sądu III RC 12/26', $representation->basis);
         $this->assertSame((string) $operator->id, $representation->established_by_id);
+        $this->assertTrue($representation->fresh()->valid_to->equalTo(now()->addDays(200)));
         $this->assertSame($this->office->public_id, AuditEntry::query()->where(['action' => 'access.granted', 'subject_type' => 'person', 'subject_id' => $this->maria->public_id])->sole()->organization_id);
+        $entry = AuditEntry::query()->where('action', 'representation.established_by_role')->sole();
+        $this->assertSame(['guardian_of_minor', 'Postanowienie sądu III RC 12/26'], [$entry->after_values['policy'], $entry->after_values['checked_document']]);
+        $this->assertSame('Opieka nad członkiem', $entry->reason);
+    }
+
+    public function test_without_an_allowed_basis_a_role_establishes_nothing(): void
+    {
+        $operator = $this->operator($this->establisher, $this->company);
+        $attempts = [
+            'brak polityki w konfiguracji' => fn () => $this->establishAs($operator, $this->maria),
+            'zakres spoza polityki' => function () use ($operator) {
+                $this->guardianPolicy();
+                $this->establishAs($operator, $this->maria, scopes: [RepresentationScope::PaymentsManage]);
+            },
+            'bez sprawdzonego dokumentu' => fn () => $this->establishAs($operator, $this->maria, document: '  '),
+            'okres dłuższy niż pozwala polityka' => fn () => $this->establishAs($operator, $this->maria, until: now()->addDays(400)),
+            'osoba pełnoletnia' => function () use ($operator) {
+                $this->app->make(AdmitMember::class)->handle($this->ewa, $this->office, 'member', 'Przyjęcie');
+                $this->establishAs($operator, $this->ewa, representative: $this->jan);
+            },
+            'funkcja spoza polityki' => function () use ($operator) {
+                $this->guardianPolicy(['represented' => ['functions' => ['trainer'], 'max_age' => null]]);
+                $this->establishAs($operator, $this->maria);
+            },
+        ];
+        foreach ($attempts as $case => $attempt) {
+            try {
+                $attempt();
+                $this->fail("Reprezentacja nie powinna powstać: {$case}");
+            } catch (ValidationException|AccessDenied) {
+            }
+        }
+        $this->assertSame(0, Representation::query()->count());
+        $this->assertSame(0, AuditEntry::query()->where('action', 'representation.established_by_role')->count());
     }
 
     public function test_representation_outside_scope_or_without_permission_is_not_found(): void
     {
+        $this->guardianPolicy(['represented' => ['functions' => null, 'max_age' => null]]);
         $operator = $this->operator($this->establisher, $this->company);
         $resolverOnly = $this->operator($this->resolver, $this->company);
 
@@ -279,8 +334,9 @@ class E2OperationsAuthorizationTest extends TestCase
         $this->assertSame(0, Representation::query()->count());
     }
 
-    public function test_representation_by_role_needs_mfa_a_role_method_and_never_for_oneself(): void
+    public function test_representation_by_role_needs_mfa_and_never_for_oneself(): void
     {
+        $this->guardianPolicy();
         $withoutMfa = $this->operator($this->establisher, $this->company, mfa: false);
         try {
             $this->establishAs($withoutMfa, $this->maria);
@@ -290,14 +346,67 @@ class E2OperationsAuthorizationTest extends TestCase
         }
 
         $operator = $this->operator($this->establisher, $this->company);
-        try {
-            $this->establishAs($operator, $this->maria, RepresentationMethod::PartiesAcceptance);
-            $this->fail('Rola nie ustanawia reprezentacji przez akceptację stron.');
-        } catch (InvalidArgumentException) {
-        }
-
         $this->app->make(AuditReason::class)->because('test: link', fn () => $operator->forceFill(['person_id' => $this->ewa->id])->save());
         $this->expectException(RepresentationNotAllowed::class);
         $this->establishAs($operator->fresh(), $this->maria);
+    }
+
+    public function test_former_member_is_resolved_by_an_operator_with_todays_history_rights(): void
+    {
+        $this->app->make(EndMembership::class)->handle(Membership::query()->where('person_id', $this->maria->id)->sole(), 'Koniec zajęć');
+        $this->travel(1)->minute();
+        $review = $this->review();
+        $withoutHistory = $this->operator($this->resolver, $this->company);
+        $historian = $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->company, 'Weryfikacja z historią', ['person_links.resolve', 'members.history.view'], 'Rola'));
+        $withHistory = $this->operator($historian, $this->company);
+
+        $this->assertDenied(fn () => $this->resolveAs($withoutHistory, $review, $this->maria), 'no_candidate_in_scope', 404);
+        $this->assertSame([], $this->app->make(PersonLinkReviewAccess::class)->candidatesFor($withoutHistory, $review)['candidates']->all());
+
+        $this->resolveAs($withHistory, $review, $this->maria);
+        $this->assertSame($this->maria->id, $review->account->fresh()->person_id);
+        $this->assertSame('organization', AuditEntry::query()->where('action', 'person_link_review.resolved')->sole()->after_values['level']);
+    }
+
+    public function test_review_stays_open_without_a_reliable_ground(): void
+    {
+        $review = $this->review();
+        $operator = $this->operator($this->resolver, $this->company);
+        $administrator = $this->platformResolver();
+
+        foreach ([
+            [$operator, 'name_similarity', 'Te same imię i nazwisko'],
+            [$operator, 'similar_contact', 'Podobny adres e-mail'],
+            [$operator, 'document', ' '],
+            [$administrator, '', 'Brak'],
+            [$administrator, 'name_similarity', 'Imię i nazwisko się zgadzają'],
+        ] as [$actor, $basis, $evidence]) {
+            try {
+                $this->resolveAs($actor, $review, $this->maria, $basis, $evidence);
+                $this->fail("Bez wiarygodnej podstawy: {$basis}");
+            } catch (ValidationException) {
+            }
+        }
+        $this->assertSame(PersonLinkReviewStatus::Open, $review->fresh()->status);
+        $this->assertNull($review->account->fresh()->person_id);
+        $this->assertSame(0, AuditEntry::query()->where('action', 'person_link_review.resolved')->count());
+    }
+
+    public function test_out_of_scope_candidates_stay_hidden_and_the_operator_is_told_to_escalate(): void
+    {
+        $review = $this->review();
+        $operator = $this->operator($this->resolver, $this->company);
+
+        $people = Person::query()->count();
+        $view = $this->app->make(PersonLinkReviewAccess::class)->candidatesFor($operator, $review);
+        $this->assertSame('Tej sprawy nie można rozstrzygnąć w Twoim zakresie — wymaga rozstrzygnięcia na wyższym poziomie.', $view['escalation_notice']);
+        $this->assertStringNotContainsString('Jan', json_encode($view, JSON_UNESCAPED_UNICODE));
+        try {
+            $this->resolveAs($operator, $review, null);
+            $this->fail('Nowa osoba przy kandydacie spoza zakresu.');
+        } catch (AccessDenied $denied) {
+            $this->assertSame('access.escalation_required', $denied->getMessage());
+        }
+        $this->assertSame($people, Person::query()->count(), 'Nie powstała dodatkowa PERSON.');
     }
 }

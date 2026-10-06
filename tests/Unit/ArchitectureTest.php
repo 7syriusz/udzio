@@ -79,7 +79,7 @@ class ArchitectureTest extends TestCase
      */
     public function test_privileged_operations_have_no_http_entry_yet(): void
     {
-        $offenders = $this->filesMatching(['app/Http', 'routes'], '/\b(ResetAccountMfa|GrantPlatformRole|InstallFirstAdministrator|CreateOrganization)\b/');
+        $offenders = $this->filesMatching(['app/Http', 'routes'], '/\b(ResetAccountMfa|EmergencyResetAccountMfa|GrantPlatformRole|InstallFirstAdministrator|CreateOrganization)\b/');
 
         $this->assertSame([], $offenders, 'Operacja uprzywilejowana dostępna przez HTTP przed wdrożeniem ekranu z kontrolą: '.implode(', ', $offenders));
     }

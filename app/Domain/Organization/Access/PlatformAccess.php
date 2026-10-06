@@ -17,8 +17,8 @@ use DateTimeInterface;
 /**
  * Decisions on platform permissions (E3.8b) — separate from AccessDecider: only platform role assignments
  * count, never organization roles. Every platform permission is privileged, so it needs a verified e-mail and
- * confirmed MFA. A technical process under SystemAuthority gets exactly one thing here: creating the first
- * administrator while the platform is not installed yet.
+ * confirmed MFA. A technical process under SystemAuthority gets only the console procedures declared by its
+ * purpose: creating the first administrator while the platform is not installed yet, and the emergency MFA reset.
  */
 final class PlatformAccess
 {
@@ -42,6 +42,9 @@ final class PlatformAccess
         }
         if ($permission === PlatformPermission::InstallFirstAdministrator) {
             return $this->deny('installation_only', $basis);
+        }
+        if ($permission === PlatformPermission::EmergencyMfaReset) {
+            return $this->deny('console_only', $basis);
         }
         $assignments = PlatformRoleAssignment::query()->where('user_id', $account->getKey())->activeAt($at)->orderBy('id')->get();
         if ($assignments->isEmpty()) {
@@ -101,9 +104,9 @@ final class PlatformAccess
 
         return match (true) {
             $purpose === null => $this->deny(AccessDecision::REASON_NO_ACCOUNT, $basis),
-            $permission !== PlatformPermission::InstallFirstAdministrator => $this->deny('system_authority_not_for_platform', $basis),
+            ! in_array($permission, [PlatformPermission::InstallFirstAdministrator, PlatformPermission::EmergencyMfaReset], true) => $this->deny('system_authority_not_for_platform', $basis),
             ! $purpose->allows($permission) => $this->deny('system_purpose_permission_missing', $basis),
-            PlatformInstallation::completed() => $this->deny('installation_completed', $basis),
+            $permission === PlatformPermission::InstallFirstAdministrator && PlatformInstallation::completed() => $this->deny('installation_completed', $basis),
             default => new AccessDecision(true, AccessDecision::REASON_SYSTEM_AUTHORITY, [...$basis, 'decision' => 'allowed', 'reason' => AccessDecision::REASON_SYSTEM_AUTHORITY]),
         };
     }

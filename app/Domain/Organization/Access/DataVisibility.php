@@ -34,8 +34,9 @@ use LogicException;
  * - a PERSON is global but visible only through a context (own person, represented with `profile.view`,
  *   members of units with `members.view`).
  * History (a past moment, former members, archived units) is shown only when the account has the right to
- * that kind of history today; then the state of the chosen moment is computed. A role held in the past gives
- * nothing today. Pending assignments grant nothing. Reading something outside answers a generic 404; the
+ * that kind of history today; only then the structure of the chosen moment decides which units were under the
+ * scope of today's assignment. Roles held at that moment play no part: a role held in the past gives nothing
+ * today, and a right granted today covers the past as well. Pending assignments grant nothing. Reading something outside answers a generic 404; the
  * denial goes through AccessDecider (one entry per operation). Exports, bulk reads, protected reads and reads
  * by a technical process are audited; ordinary list views are not.
  */
@@ -52,7 +53,7 @@ final class DataVisibility
     public function organizations(User $account, Permission $permission = Permission::OrganizationView, ?DateTimeInterface $at = null): Builder
     {
         $ids = $this->isPast($at)
-            ? array_intersect($this->historyUnits($account, Permission::StructureHistoryView, 'organization', $at), $this->access->grantedOrganizationIds($account, $permission, $at))
+            ? $this->historyUnits($account, Permission::StructureHistoryView, 'organization', $at)
             : $this->access->grantedOrganizationIds($account, $permission);
 
         return Organization::query()->whereKey(array_values($ids));
@@ -67,7 +68,7 @@ final class DataVisibility
     public function memberships(User $account, ?DateTimeInterface $at = null): Builder
     {
         $units = $this->isPast($at)
-            ? array_intersect($this->historyUnits($account, Permission::MembersHistoryView, 'membership', $at), $this->access->grantedOrganizationIds($account, Permission::MembersView, $at))
+            ? $this->historyUnits($account, Permission::MembersHistoryView, 'membership', $at)
             : $this->access->grantedOrganizationIds($account, Permission::MembersView);
 
         return Membership::query()->whereIn('organization_id', array_values($units))->effectiveAt($at ?? CarbonImmutable::now('UTC'));
@@ -122,11 +123,10 @@ final class DataVisibility
     public function roleAssignments(User $account, ?DateTimeInterface $at = null): Builder
     {
         if (! $this->isPast($at)) {
-            return $this->roleAssignmentsAt($account, null);
+            return $this->currentRoleAssignments($account);
         }
-        $audited = $this->historyUnits($account, Permission::RolesAuditView, 'role_assignment', $at);
 
-        return $this->roleAssignmentsAt($account, $at)->whereIn('scope_organization_id', $audited);
+        return RoleAssignment::query()->whereIn('scope_organization_id', $this->historyUnits($account, Permission::RolesAuditView, 'role_assignment', $at));
     }
 
     /**
@@ -137,19 +137,19 @@ final class DataVisibility
      */
     public function accessRoles(User $account, ?DateTimeInterface $at = null): Builder
     {
-        $audited = $this->isPast($at) ? $this->historyUnits($account, Permission::RolesAuditView, 'access_role', $at) : null;
-        $at = CarbonImmutable::instance($at ?? CarbonImmutable::now('UTC'));
+        if ($this->isPast($at)) {
+            return AccessRole::query()->whereIn('organization_id', $this->historyUnits($account, Permission::RolesAuditView, 'access_role', $at));
+        }
         $managedUnits = [
-            ...$this->access->grantedOrganizationIds($account, Permission::RolesManage, $at),
-            ...$this->access->grantedOrganizationIds($account, Permission::RolesAuditView, $at),
+            ...$this->access->grantedOrganizationIds($account, Permission::RolesManage),
+            ...$this->access->grantedOrganizationIds($account, Permission::RolesAuditView),
         ];
-        $held = RoleAssignment::query()->select('access_role_id')->where('user_id', $account->getKey())->activeAt($at);
-        $query = AccessRole::query()->where(fn (Builder $query) => $query
-            ->whereIn('organization_id', $managedUnits)
-            ->orWhereIn('public_id', array_keys($this->access->roleGrantCatalog($account, $at)))
-            ->orWhereIn('id', $held));
+        $held = RoleAssignment::query()->select('access_role_id')->where('user_id', $account->getKey())->activeAt(CarbonImmutable::now('UTC'));
 
-        return $audited === null ? $query : $query->whereIn('organization_id', $audited);
+        return AccessRole::query()->where(fn (Builder $query) => $query
+            ->whereIn('organization_id', $managedUnits)
+            ->orWhereIn('public_id', array_keys($this->access->roleGrantCatalog($account)))
+            ->orWhereIn('id', $held));
     }
 
     /**
@@ -301,11 +301,11 @@ final class DataVisibility
     }
 
     /** @return Builder<RoleAssignment> */
-    private function roleAssignmentsAt(User $account, ?DateTimeInterface $at): Builder
+    private function currentRoleAssignments(User $account): Builder
     {
-        $catalog = $this->access->roleGrantCatalog($account, $at);
+        $catalog = $this->access->roleGrantCatalog($account);
         $roleIds = AccessRole::query()->whereIn('public_id', array_keys($catalog))->pluck('id', 'public_id');
-        $auditedUnits = $this->access->grantedOrganizationIds($account, Permission::RolesAuditView, $at);
+        $auditedUnits = $this->access->grantedOrganizationIds($account, Permission::RolesAuditView);
 
         return RoleAssignment::query()->where(function (Builder $query) use ($account, $catalog, $roleIds, $auditedUnits): void {
             $query->where('user_id', $account->getKey())->orWhereIn('scope_organization_id', $auditedUnits);

@@ -192,15 +192,39 @@ class AccessResolutionsTest extends TestCase
         $this->assertSame([], $this->candidates('anna'.'%'), 'Znaki wieloznaczne nie poszerzają wyszukiwania.');
     }
 
+    public function test_candidate_search_never_reaches_the_whole_account_base(): void
+    {
+        $loner = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Anastazja', 'family_name' => 'Nowak']);
+        User::factory()->create(['person_id' => $loner->id, 'email' => 'anastazja@example.pl']);
+        $this->app->make(EndMembership::class)->handle($this->annaInOffice, 'Rezygnacja');
+        $this->travel(1)->minute();
+
+        $this->assertSame([], $this->candidates('Ana'), 'Konto bez członkostwa w zakresie nie jest wyszukiwane po imieniu.');
+        $this->assertSame([], $this->candidates('Nowak'), 'Były członek ani konto spoza struktur nie trafiają do wyników.');
+        $this->assertSame([], $this->candidates('anastazja@example.pl'), 'Ani po dokładnym e-mailu.');
+        $this->assertSame([], $this->candidates('anna.nowak@example.pl'));
+        $this->assertSame([], $this->candidates('___'), 'Znaki wieloznaczne nie wyszukują wszystkich.');
+        $this->assertSame([], $this->candidates('@example.pl'), 'Fragment e-maila nie wyszukuje.');
+    }
+
     public function test_candidate_searches_are_limited(): void
     {
         config(['organization.candidate_search.max_per_minute' => 3]);
-        foreach (range(1, 3) as $attempt) {
-            $this->candidates('Ann');
-        }
-
-        $this->expectException(ThrottleRequestsException::class);
         $this->candidates('Ann');
+        $this->candidates('nikt@example.pl');
+        $this->denied(fn () => $this->candidates('Bar', $this->foreign));
+
+        $otherManager = User::factory()->create();
+        $this->grant($otherManager, $this->hrManager, $this->company);
+        $this->assertCount(1, $this->app->make(RoleCandidateSearch::class)->search($otherManager, $this->accountant, $this->office, 'Ann'), 'Limit liczony osobno dla każdego konta.');
+
+        try {
+            $this->candidates('Ann');
+            $this->fail('Oczekiwano przekroczenia limitu wyszukiwań.');
+        } catch (ThrottleRequestsException) {
+        }
+        $this->travel(61)->seconds();
+        $this->assertCount(1, $this->candidates('Ann'), 'Po upływie minuty wyszukiwanie znów działa.');
     }
 
     public function test_roles_outside_the_catalog_stay_hidden_without_roles_audit(): void
@@ -350,6 +374,35 @@ class AccessResolutionsTest extends TestCase
         $viewer = User::factory()->create();
         $this->grant($viewer, $this->administrator, $this->company);
         $this->denied(fn () => $this->visibility()->memberships($viewer, $whenAllowed));
+    }
+
+    public function test_history_checks_todays_right_first_and_then_uses_the_past_structure(): void
+    {
+        $formerHistorian = User::factory()->create();
+        $formerAssignment = $this->grant($formerHistorian, $this->historian, $this->company);
+        $beforeMove = now()->addSecond()->toImmutable();
+        $this->travel(1)->minute();
+        $this->app->make(MoveOrganization::class)->handle($this->office, $this->foreign, 'Przekazanie');
+        $this->system(fn () => $this->app->make(RevokeRoleAssignment::class)->handle($formerAssignment, 'Koniec zatrudnienia'));
+        $this->travel(1)->minute();
+
+        $newHistorian = User::factory()->create();
+        $this->grant($newHistorian, $this->historian, $this->company);
+        $foreignHistorian = User::factory()->create();
+        $this->grant($foreignHistorian, $this->system(fn () => $this->app->make(CreateAccessRole::class)->handle($this->foreign, 'Archiwista', ['organization.view', 'members.view', 'members.history.view', 'structure.history.view'], 'Rola')), $this->foreign);
+        $this->travel(1)->minute();
+
+        $this->denied(fn () => $this->visibility()->memberships($formerHistorian, $beforeMove));
+        $this->denied(fn () => $this->visibility()->organizations($formerHistorian, at: $beforeMove));
+        $this->assertSame(2, AuditEntry::on('audit')->where(['action' => 'access.denied', 'subject_id' => 'history', 'after_values->account_id' => $formerHistorian->id])->count(), 'Rola z przeszłości bez dzisiejszego prawa = odmowa.');
+
+        $this->assertSame([$this->annaInOffice->id], $this->visibility()->memberships($newHistorian, $beforeMove)->pluck('id')->all(), 'Dzisiejsze prawo + struktura z tamtej chwili, bez wymogu roli w przeszłości.');
+        $this->assertContains($this->office->id, $this->visibility()->organizations($newHistorian, at: $beforeMove)->pluck('id')->all());
+        $this->assertSame([], $this->visibility()->memberships($newHistorian)->pluck('id')->all(), 'Dziś jednostka jest poza zakresem.');
+
+        $this->assertNotContains($this->annaInOffice->id, $this->visibility()->memberships($foreignHistorian, $beforeMove)->pluck('id')->all(), 'W tamtej chwili jednostka nie należała do zakresu.');
+        $this->assertNotContains($this->office->id, $this->visibility()->organizations($foreignHistorian, at: $beforeMove)->pluck('id')->all());
+        $this->assertContains($this->annaInOffice->id, $this->visibility()->memberships($foreignHistorian)->pluck('id')->all());
     }
 
     public function test_pending_request_gives_nothing_and_shows_the_approver_only_what_is_needed(): void

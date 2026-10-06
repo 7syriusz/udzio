@@ -661,12 +661,23 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   Wartość spoza listy `localization.supported` jest pomijana. Języka nie wybiera się automatycznie z kraju,
   adresu IP ani danych organizacji; nagłówka przeglądarki (`Accept-Language`) też nie używamy (założenie,
   odwracalne przez dodanie kroku w `LocaleResolver`).
-- **Trzy rodzaje tłumaczeń są rozdzielone:** (1) interfejs i komunikaty systemowe — `lang/` (E3.6b);
-  (2) język wiadomości e-mail/SMS/powiadomień — ustalany dla odbiorcy (`User::preferredLocale`,
-  `LocaleResolver::forAccount`/`forPerson`), teksty w `lang/pl/notifications.php`; szablony komunikacji
-  organizatora — E10; (3) wielojęzyczne treści tworzone przez organizatora (nazwy wydarzeń, opisy, regulaminy,
-  pytania formularzy) — dane, nie pliki `lang/`, w etapach tych treści.
-- **Dodanie języka:** pliki `lang/<kod>/`, `lang/<kod>.json` i wpis w `localization.supported`.
+- **Trzy niezależne obszary językowe — osobne mechanizmy, nie jeden:**
+  1. **interfejs i komunikaty systemowe** — `LocaleResolver` + `SetLocale`, teksty w `lang/`, lista
+     `localization.supported` (wdrożone w E3.6b);
+  2. **język e-maili, SMS-ów i powiadomień** — `RecipientLocale` (`User::preferredLocale`), ustalany dla
+     odbiorcy wyłącznie z języka zapisanego na jego koncie, bez sesji i żądania, z własną listą
+     `localization.message_languages` (język wiadomości dopisuje się, gdy istnieją jego szablony); teksty systemowe
+     w `lang/pl/notifications.php`, szablony komunikacji organizatora — E10;
+  3. **wersje językowe treści organizatora** (opisy, regulaminy, formularze, nazwy wydarzeń) — dane w bazie,
+     nie pliki `lang/` ani żaden z powyższych mechanizmów; w etapach tych treści.
+- **Konto i sesja:** konto przechowuje wybrany język (`users.locale`); jawny wybór niezalogowanego jest
+  zapisywany w sesji (`POST /locale`) i stosowany przy wejściu publicznym bez konta przez `LocaleResolver`.
+- **Konfiguracja wersjonowana:** domyślne wartości w `config/app.php` (`locale`, `fallback_locale` = `pl`,
+  `faker_locale` = `pl_PL`) i `config/localization.php`; te same wartości w `.env.example`,
+  `.env.production.example` i `phpunit.xml`. Brak zmiennych `APP_LOCALE`/`APP_FALLBACK_LOCALE` w środowisku
+  nie przełącza na angielski (test).
+- **Dodanie języka:** pliki `lang/<kod>/`, `lang/<kod>.json` i wpis w `localization.supported` (dla wiadomości —
+  szablony i wpis w `localization.message_languages`); bez zmian logiki biznesowej (test).
 
 ## Z-037 — Rozstrzygnięcia Z-034a we wdrożeniu (E3.7b, 2026-10-05)
 
@@ -697,7 +708,10 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   jednostki, które w tamtej chwili były pod jednostką zakresu (przeniesienie nie zmienia historii), a dla
   „teraz” — dodatkowo jednostki zarchiwizowane, które w chwili archiwizacji należały do zakresu.
   `DataVisibility` dla daty z przeszłości najpierw sprawdza to prawo (brak → odmowa 403 z audytem,
-  przyczyna `history_not_permitted`), potem przecina wynik z tym, co było widoczne w tamtej chwili.
+  przyczyna `history_not_permitted`), dopiero potem na podstawie struktury z tamtej chwili ustala, które jednostki
+  były w zakresie dzisiejszego przypisania. Role posiadane w tamtej chwili nie mają znaczenia: rola z przeszłości
+  bez dzisiejszego prawa daje odmowę, a prawo nadane dziś obejmuje także przeszłość (poprawka E3.7c — wcześniej
+  wynik był dodatkowo zawężany do ról z tamtej chwili).
 - **Przechowywanie historii członkostwa:** `organization.history.visible_days` = `null` (bez limitu) jako
   ustawienie **tymczasowe** do czasu polityki przechowywania (Z-017); dane nie są usuwane automatycznie.
 - **Wniosek oczekujący:** `DataVisibility::pendingRoleRequests` zwraca tylko wnioski, które konto może

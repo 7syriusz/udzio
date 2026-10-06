@@ -33,6 +33,7 @@ class AccessDenied extends AuthorizationException
         return match ($reason) {
             'mfa_required' => 'access.mfa_required',
             'email_unverified' => 'access.email_unverified',
+            'candidate_outside_scope', 'candidates_outside_scope' => 'access.escalation_required',
             default => 'access.unauthorized',
         };
     }

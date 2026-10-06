@@ -13,11 +13,13 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * Who may see and resolve an account-to-person review (Z-022, E3.9, Z-042). An organization operator with
- * `person_links.resolve` covers the candidates who are current members of units in their scope: they see only
- * those, may link the account to one of them, and may choose "a new person" only when they cover every
- * candidate (otherwise someone outside their view could be the account holder). A platform administrator with
- * `platform.person_links.resolve` covers every candidate. Nobody resolves the review of their own account.
+ * Who may see and resolve an account-to-person review (Z-022, E3.9, E3.9a, Z-042). An organization operator with
+ * `person_links.resolve` covers the candidates who are current members of units in their scope, and former
+ * members of units where they also hold — today — `members.history.view` (with the same retention limit as
+ * membership history). A role the operator held in the past gives nothing. They see only covered candidates,
+ * may link the account to one of them, and may choose "a new person" only when they cover every candidate;
+ * otherwise the case needs a higher level. A platform administrator with `platform.person_links.resolve` covers
+ * every candidate. Nobody resolves the review of their own account.
  */
 final class PersonLinkReviewAccess
 {
@@ -32,27 +34,46 @@ final class PersonLinkReviewAccess
     }
 
     /**
-     * Candidates the operator covers through a current membership in their scope.
+     * Candidates the operator covers today: current members of units in their `person_links.resolve` scope, then
+     * former members of units where they also hold `members.history.view` today.
      *
-     * @return array<int, int> candidate person ID => ID of a unit in scope where the candidate is a member
+     * @return array<int, array{unit: int, via: 'membership'|'membership_history'}> candidate person ID => covering unit
      */
     public function coveredCandidates(User $operator, PersonLinkReview $review): array
     {
+        $now = CarbonImmutable::now('UTC');
+        $covered = [];
         $units = $this->decider->grantedOrganizationIds($operator, Permission::PersonLinksResolve);
-        if ($units === []) {
-            return [];
+        if ($units !== []) {
+            foreach (Membership::query()->whereIn('person_id', $review->candidate_person_ids)->whereIn('organization_id', $units)->activeAt($now)->orderBy('id')->get() as $membership) {
+                $covered[$membership->person_id] ??= ['unit' => $membership->organization_id, 'via' => 'membership'];
+            }
+        }
+        $historyUnits = array_values(array_intersect(
+            $this->decider->historyOrganizationIds($operator, Permission::MembersHistoryView),
+            $this->decider->historyOrganizationIds($operator, Permission::PersonLinksResolve),
+        ));
+        if ($historyUnits !== []) {
+            $former = Membership::query()->whereIn('person_id', $review->candidate_person_ids)->whereIn('organization_id', $historyUnits)
+                ->whereNotNull('valid_to')->where('valid_to', '<=', $now->format('Y-m-d H:i:s.u'));
+            $days = config('organization.history.visible_days');
+            if ($days !== null) {
+                $former->where('valid_to', '>=', $now->subDays((int) $days)->format('Y-m-d H:i:s.u'));
+            }
+            foreach ($former->orderBy('id')->get() as $membership) {
+                $covered[$membership->person_id] ??= ['unit' => $membership->organization_id, 'via' => 'membership_history'];
+            }
         }
 
-        return Membership::query()->whereIn('person_id', $review->candidate_person_ids)->whereIn('organization_id', $units)
-            ->activeAt(CarbonImmutable::now('UTC'))->orderBy('id')->get()
-            ->unique('person_id')->mapWithKeys(fn (Membership $membership) => [$membership->person_id => $membership->organization_id])->all();
+        return $covered;
     }
 
     /**
-     * Minimal data of the candidates the operator may see (identifier, given and family name) and whether they
-     * cover all of them — only then may "a new person" be chosen. The account holder never sees this.
+     * Minimal data of the candidates the operator may see (identifier, given and family name), whether they cover
+     * all of them — only then may "a new person" be chosen — and, if not, only the fact that the case needs a
+     * higher level (`escalation_notice`, never data of the others). The account holder never sees this.
      *
-     * @return array{candidates: Collection<int, array{public_id: string, given_name: string, family_name: string}>, covers_all: bool}
+     * @return array{candidates: Collection<int, array{public_id: string, given_name: string, family_name: string}>, covers_all: bool, escalation_notice: ?string}
      */
     public function candidatesFor(User $operator, PersonLinkReview $review): array
     {
@@ -63,7 +84,9 @@ final class PersonLinkReviewAccess
         $candidates = Person::query()->whereKey($ids)->orderBy('family_name')->orderBy('given_name')->get()
             ->map(fn (Person $person) => ['public_id' => $person->public_id, 'given_name' => $person->given_name, 'family_name' => $person->family_name]);
 
-        return ['candidates' => $candidates, 'covers_all' => $ids !== [] && count($ids) === count($review->candidate_person_ids)];
+        $coversAll = $ids !== [] && count($ids) === count($review->candidate_person_ids);
+
+        return ['candidates' => $candidates, 'covers_all' => $coversAll, 'escalation_notice' => $ids !== [] && ! $coversAll ? __('access.escalation_required') : null];
     }
 
     /**

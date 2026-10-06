@@ -902,32 +902,74 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   oraz ustawianiu, zmianie i resecie hasła. Limit prób logowania bez zmian: 5/min (e-mail + IP), kod MFA 5/min.
 - **Weryfikacja:** `PasswordPolicyTest` (11 przypadków) i `PasswordWithSpacesTest`.
 
-## Z-042 — Uprawnienia do operacji E2 (E3.9, 2026-10-06)
+## Z-042 — Uprawnienia do operacji E2 (E3.9, doprecyzowane decyzjami Jakuba w E3.9a, 2026-10-06)
 
 - **Zasada:** procedury Identity z E2 (`ResolvePersonLinkReview`, `GrantRepresentation`) pozostają prymitywami bez
   zależności od organizacji; wykonuje je uprawniona rola przez akcje Organization z centralną decyzją
   (`ResolvePersonLinkReviewAsOperator`, `EstablishRepresentation`). Żadna ścieżka HTTP nie wywołuje prymitywów
   bezpośrednio (`ArchitectureTest`).
-- **Rozstrzyganie powiązania konta z osobą (Z-022)** — założenia:
-  - operator organizacji z `person_links.resolve` „obejmuje” kandydatów, którzy są **obecnymi członkami** jednostek
-    w jego zakresie; widzi tylko ich (identyfikator, imię, nazwisko — `PersonLinkReviewAccess::candidatesFor`)
-    i tylko zgłoszenia z co najmniej jednym takim kandydatem (`openReviewsFor`);
-  - może połączyć konto tylko z objętym kandydatem; „nową osobę” może wybrać tylko, gdy obejmuje **wszystkich**
-    kandydatów (inaczej właścicielem konta mógłby być ktoś spoza jego wiedzy) — odmowy `candidate_outside_scope`,
-    `candidates_outside_scope`; brak objętych kandydatów — 404 (`no_candidate_in_scope`);
-  - zgłoszenia, których kandydaci nie należą do żadnej organizacji operatora (np. osoby bez członkostwa),
-    rozstrzyga administrator platformy — nowe uprawnienie platformy `platform.person_links.resolve` w roli
-    `administrator`; obejmuje wszystkich kandydatów;
-  - nikt nie rozstrzyga zgłoszenia własnego konta (`own_review`, `own_account`).
-- **Ustanawianie reprezentacji (Z-025) przez rolę** — założenia: `representations.establish` w jednostce, w której
-  osoba reprezentowana jest **obecnym członkiem**; osoba spoza zakresu (lub brak uprawnienia) — 404
-  (`represented_outside_scope`), bez ujawniania członkostwa. Rola ustanawia reprezentację tylko sposobem
-  `role_decision` lub `document` — akceptacja stron i oświadczenie pochodzą od stron, nie od roli. Reguły E2 nadal
-  obowiązują (włączone sposoby, dozwolone zakresy, nikt nie ustanawia reprezentacji dla siebie). Reprezentant nie
-  musi być członkiem organizacji (np. rodzic). Zmiana zakresu i zakończenie reprezentacji przez rolę — przy ekranie
-  reprezentacji (do zaplanowania), wg tej samej zasady.
-- **Uprzywilejowane:** `person_links.resolve` i `representations.establish` dopisane do
-  `organization.privileged_access.permissions` — połączenie konta z osobą i reprezentacja otwierają kontu dane
-  osoby, więc wymagają MFA (Z-038). Odmowa z powodu MFA lub e-maila daje polską wskazówkę zamiast „nie znaleziono”
-  (`AccessDecider::blockedBySecurityCondition`).
-- **Weryfikacja:** `E2OperationsAuthorizationTest` (10 przypadków).
+
+### Rozstrzyganie powiązania konta z osobą (Z-022)
+
+- **Zakres operatora organizacji** (`person_links.resolve`, `PersonLinkReviewAccess::coveredCandidates`) obejmuje
+  kandydatów, którzy są:
+  - **obecnymi członkami** jednostek w jego zakresie;
+  - **byłymi członkami** jednostek, w których operator ma **dziś** także `members.history.view` (z tym samym limitem
+    przechowywania co historia członkostwa, `organization.history.visible_days`; także jednostki zarchiwizowane
+    należące do zakresu) — przykład: Anna uczestniczyła rok temu w zajęciach i dopiero teraz zakłada konto;
+    sprawę rozstrzyga operator organizacji z dzisiejszym prawem do historii, nie administrator platformy;
+  - osobami związanymi z organizacją inną uzasadnioną relacją — **gdy taka relacja powstanie w Core** (wtedy
+    dopisywana tu i w `coveredCandidates`).
+  Dawne członkostwo operatora ani jego dawna rola nie dają dzisiaj dostępu (prawa liczone z przypisań aktywnych
+  dziś, Z-037).
+- **Widoczność:** operator widzi tylko objętych kandydatów (identyfikator, imię, nazwisko). O kandydatach spoza
+  zakresu dowiaduje się wyłącznie, że sprawa wymaga rozstrzygnięcia na wyższym poziomie
+  (`escalation_notice`, komunikat „Tej sprawy nie można rozstrzygnąć w Twoim zakresie — wymaga rozstrzygnięcia
+  na wyższym poziomie.” — także przy odmowie `candidate_outside_scope` / `candidates_outside_scope`). Brak
+  objętych kandydatów — 404 (`no_candidate_in_scope`).
+- **Nowa PERSON:** tylko gdy zakres operatora obejmuje wszystkich kandydatów; nie wolno tworzyć kolejnej PERSON,
+  aby ominąć istniejących kandydatów.
+- **Podstawa rozstrzygnięcia — zawsze** (operator i administrator platformy, połączenie i nowa osoba):
+  `PersonLinkBasis` — `email_reconfirmed` (ponowne potwierdzenie adresu e-mail), `phone_confirmed` (potwierdzenie
+  numeru telefonu), `person_confirmation` (potwierdzenie przez zainteresowaną osobę), `document` (dokument lub inny
+  wiarygodny dowód), `organizations_agreement` (zgodne potwierdzenia organizacji posiadających zapisy) — oraz opis
+  sprawdzonego dowodu i powód. **Podobieństwo imienia, nazwiska ani danych kontaktowych nie jest podstawą** (nie ma
+  takiej wartości). Bez wiarygodnej podstawy zgłoszenie pozostaje otwarte — bezpieczniej niż połączyć konto
+  z danymi obcej osoby. Audyt `person_link_review.resolved` (poziom, podstawa, dowód, wybrana osoba lub nowa).
+- **Administrator platformy** (`platform.person_links.resolve`) obsługuje sprawy, których nie może rozstrzygnąć
+  żadna pojedyncza organizacja; nie zgaduje — ta sama obowiązkowa podstawa; widzi tylko dane potrzebne do
+  rozstrzygnięcia (identyfikator, imię, nazwisko kandydatów); MFA; pełny audyt; nigdy sprawa własnego konta.
+- Nikt nie rozstrzyga zgłoszenia własnego konta (`own_review`, `own_account`).
+
+### Ustanawianie reprezentacji (Z-025) przez rolę
+
+- Rola ustanawia reprezentację **tylko według polityki**, którą przewiduje scenariusz lub konfiguracja organizacji
+  (`organization.representation_policies`, domyślnie pusta — żadna rola niczego nie ustanawia). Polityka określa:
+  wobec kogo (funkcje członkostwa, maksymalny wiek), na jakiej podstawie (`document` lub `role_decision`), jaki
+  dokument trzeba sprawdzić, na jaki okres (`max_days` — wtedy data końca obowiązkowa), jakie zakresy dostaje
+  reprezentant i w których organizacjach obowiązuje. Pracownik nie ustanawia reprezentacji, bo uważa ją za
+  przydatną. Przykłady podstaw: dokument opieki rodzica, postanowienie sądu lub organu, upoważnienie potwierdzone
+  przez pełnoletnią osobę (to podstawa od strony — nie od roli), wpis pracownika po sprawdzeniu dokumentu.
+- Akceptacja obu stron i oświadczenie pozostają odrębnymi podstawami od zainteresowanych osób — nie od roli.
+- Operator potrzebuje `representations.establish` w jednostce, w której osoba reprezentowana jest obecnym członkiem
+  zgodnym z polityką; poza zakresem — 404 (`represented_outside_scope`). Wymagane: sprawdzony dokument (zapisany
+  jako podstawa reprezentacji), powód; audyt `access.granted` i `representation.established_by_role` (polityka,
+  dokument, zakresy, koniec). Reguły E2 nadal obowiązują (włączone sposoby, dozwolone zakresy, nigdy dla siebie).
+
+### Zmiana i zakończenie reprezentacji (reguły; ekrany później)
+
+- Zakończyć może: osoba reprezentowana, jeżeli pozwala na to jej sytuacja prawna; reprezentant; uprawniona rola,
+  jeżeli reprezentacja powstała na podstawie podlegającej jej kontroli (np. polityka jej organizacji).
+- Przy reprezentacji wynikającej z prawa lub decyzji organu samodzielne zakończenie może być ograniczone zgodnie
+  z jej podstawą (do zapisania w polityce, gdy powstanie ekran).
+- Zakończenie nie usuwa historii wcześniejszych działań (`person.acted_on_behalf` zostaje w audycie).
+- Zmiana zakresu nie poprawia starego wpisu: kończy dotychczasowy okres i otwiera nowy (już tak działa
+  `ChangeRepresentationScopes`, wzorzec E1.5).
+- Operacje roli wymagają powodu, audytu i MFA.
+
+### MFA
+
+- `person_links.resolve` i `representations.establish` są uprzywilejowane (`organization.privileged_access.permissions`)
+  — obie mogą udostępnić konto lub dane innej osoby (decyzja Jakuba). Odmowa z powodu MFA lub e-maila daje polską
+  wskazówkę zamiast „nie znaleziono” (`AccessDecider::blockedBySecurityCondition`).
+- **Weryfikacja:** `E2OperationsAuthorizationTest` (14 przypadków).

@@ -3,6 +3,7 @@
 namespace App\Domain\Organization\Actions;
 
 use App\Domain\Identity\Actions\ResolvePersonLinkReview;
+use App\Domain\Identity\Enums\PersonLinkBasis;
 use App\Domain\Identity\Models\Person;
 use App\Domain\Identity\Models\PersonLinkReview;
 use App\Domain\Organization\Access\AccessDecider;
@@ -12,6 +13,7 @@ use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Enums\PlatformPermission;
 use App\Domain\Organization\Models\Membership;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Platform\Actions\RecordAudit;
 use App\Domain\Platform\ActorContext;
 use App\Domain\Platform\Enums\ActorType;
 use App\Domain\Platform\Exceptions\AccessDenied;
@@ -19,12 +21,17 @@ use App\Domain\Platform\OperationCorrelation;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 /**
- * Resolves an account-to-person review (Z-022) on behalf of an authorized operator (E3.9, Z-042): a platform
- * administrator with `platform.person_links.resolve`, or an organization operator with `person_links.resolve`
- * for the candidates they cover (PersonLinkReviewAccess). The decision is recorded like every access decision;
- * the linking itself is the Identity procedure (ResolvePersonLinkReview), which no HTTP path calls directly.
+ * Resolves an account-to-person review (Z-022) on behalf of an authorized operator (E3.9, E3.9a, Z-042): a
+ * platform administrator with `platform.person_links.resolve`, or an organization operator with
+ * `person_links.resolve` for the candidates they cover (PersonLinkReviewAccess). Every resolution — also by a
+ * platform administrator, also "a new person" — needs an accepted ground (PersonLinkBasis; similar names or
+ * contact data are not one), a description of the evidence and a reason; without them the review stays open.
+ * Audited as `person_link_review.resolved`; the linking itself is the Identity procedure (ResolvePersonLinkReview),
+ * which no HTTP path calls directly.
  */
 final class ResolvePersonLinkReviewAsOperator
 {
@@ -35,24 +42,44 @@ final class ResolvePersonLinkReviewAsOperator
         private readonly PlatformAccess $platform,
         private readonly ActorContext $context,
         private readonly OperationCorrelation $operation,
+        private readonly RecordAudit $audit,
     ) {}
 
-    public function handle(PersonLinkReview $review, ?Person $person, string $reason): PersonLinkReview
+    /**
+     * @param  string  $basis  a PersonLinkBasis value
+     * @param  string  $evidence  what was checked (e.g. "dowód osobisty sprawdzony w biurze", reference of a confirmation)
+     */
+    public function handle(PersonLinkReview $review, ?Person $person, string $basis, string $evidence, string $reason): PersonLinkReview
     {
-        return $this->operation->within(fn () => DB::transaction(function () use ($review, $person, $reason): PersonLinkReview {
+        $input = Validator::make(['basis' => $basis, 'evidence' => trim($evidence), 'reason' => trim($reason)], [
+            'basis' => ['required', Rule::enum(PersonLinkBasis::class)],
+            'evidence' => ['required', 'string', 'max:1000'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ])->validate();
+
+        return $this->operation->within(fn () => DB::transaction(function () use ($review, $person, $input): PersonLinkReview {
             $review = PersonLinkReview::query()->whereKey($review->getKey())->lockForUpdate()->firstOrFail();
             $actor = $this->context->current();
             $operator = $actor->type === ActorType::Account ? User::query()->find($actor->identifier) : null;
             if ($operator === null) {
                 $this->deny($review, null, 'actor_without_account');
             }
-            if ($this->reviews->isPlatformResolver($operator)) {
+            $level = $this->reviews->isPlatformResolver($operator) ? 'platform' : 'organization';
+            if ($level === 'platform') {
                 $this->platform->authorize(PlatformPermission::PersonLinksResolve, $review->account);
             } else {
                 $this->authorizeInScope($review, $person, $operator);
             }
+            $resolved = $this->resolve->handle($review, $person, $input['reason']);
+            $this->audit->handle('person_link_review.resolved', 'person_link_review', $review->public_id, reason: $input['reason'], after: [
+                'level' => $level,
+                'basis' => $input['basis'],
+                'evidence' => $input['evidence'],
+                'linked_person' => $resolved->fresh()->resolved_person_id === null ? null : Person::query()->whereKey($resolved->fresh()->resolved_person_id)->value('public_id'),
+                'new_person' => $person === null,
+            ]);
 
-            return $this->resolve->handle($review, $person, $reason);
+            return $resolved;
         }));
     }
 
@@ -72,20 +99,26 @@ final class ResolvePersonLinkReviewAsOperator
             $this->deny($review, $operator, 'no_candidate_in_scope', hide: true);
         }
         if ($person !== null) {
-            $unit = $covered[$person->id] ?? null;
-            if ($unit === null) {
+            if (! isset($covered[$person->id])) {
                 $this->deny($review, $operator, 'candidate_outside_scope');
             }
-            $units = [$unit];
+            $covered = [$person->id => $covered[$person->id]];
         } else {
             // "A new person" means none of the candidates is the account holder: only someone who sees them all decides that.
             if (count($covered) !== count($review->candidate_person_ids)) {
                 $this->deny($review, $operator, 'candidates_outside_scope');
             }
-            $units = array_values(array_unique($covered));
         }
-        foreach (Organization::query()->whereKey($units)->orderBy('id')->get() as $unit) {
-            $this->decider->authorize(Permission::PersonLinksResolve, $unit, 'person_link_review', $review->public_id);
+        foreach ($covered as $coverage) {
+            $unit = Organization::query()->findOrFail($coverage['unit']);
+            if ($unit->isActiveAt(CarbonImmutable::now('UTC'))) {
+                $this->decider->authorize(Permission::PersonLinksResolve, $unit, 'person_link_review', $review->public_id);
+            } else {
+                // An archived unit is reached only through today's history rights (PersonLinkReviewAccess).
+                $this->audit->handle('access.granted', 'person_link_review', $review->public_id, organizationId: $unit->public_id, after: [
+                    'permission' => Permission::PersonLinksResolve->value, 'account_id' => $operator->getKey(), 'via' => $coverage['via'], 'decision' => 'allowed', 'reason' => 'history_rights',
+                ]);
+            }
         }
     }
 
@@ -98,7 +131,7 @@ final class ResolvePersonLinkReviewAsOperator
             'decision' => 'denied',
             'reason' => $reason,
         ]);
-        $denied = (new AccessDenied('person_link_review', $review->public_id, null, Permission::PersonLinksResolve->value))->alreadyRecorded();
+        $denied = (new AccessDenied('person_link_review', $review->public_id, null, Permission::PersonLinksResolve->value, AccessDenied::messageFor($reason)))->alreadyRecorded();
 
         throw $hide ? $denied->hideAsNotFound() : $denied;
     }

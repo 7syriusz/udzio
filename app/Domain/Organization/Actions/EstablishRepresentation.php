@@ -11,7 +11,9 @@ use App\Domain\Organization\Access\AccessDecider;
 use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Models\Membership;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Platform\Actions\RecordAudit;
 use App\Domain\Platform\ActorContext;
+use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Enums\ActorType;
 use App\Domain\Platform\Exceptions\AccessDenied;
 use App\Domain\Platform\OperationCorrelation;
@@ -19,46 +21,111 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
+use Illuminate\Validation\ValidationException;
+use LogicException;
 
 /**
- * Establishes a representation by an authorized role (Z-025, E3.9, Z-042): the operator needs
- * `representations.establish` in a unit where the represented person is a current member. A person outside the
- * operator's scope is answered as not found. The role records its decision (`role_decision`) or the document it
- * checked (`document`); acceptance and declaration come from the parties, not from a role. The Identity rules
- * still apply (enabled methods, grantable scopes, nobody establishes a representation for themselves).
+ * Establishes a representation by an authorized role (Z-025, E3.9, E3.9a, Z-042) — only under a representation
+ * policy that a scenario or the organization's configuration provides (`organization.representation_policies`):
+ * who may be represented, on which ground and after checking what, for how long and with which scopes. An
+ * employee never establishes one because it seems useful. The operator needs `representations.establish` in a
+ * unit where the represented person is a current member matching the policy; a person outside the scope is
+ * answered as not found. Identity rules still apply (enabled methods, grantable scopes, never for oneself).
  */
 final class EstablishRepresentation
 {
-    public const ROLE_METHODS = [RepresentationMethod::RoleDecision, RepresentationMethod::Document];
-
     public function __construct(
         private readonly GrantRepresentation $grant,
         private readonly AccessDecider $decider,
         private readonly ActorContext $context,
         private readonly OperationCorrelation $operation,
+        private readonly AuditReason $reason,
+        private readonly RecordAudit $audit,
     ) {}
 
-    /** @param list<RepresentationScope> $scopes */
-    public function handle(Person $representative, Person $represented, array $scopes, RepresentationMethod $method, string $basis, DateTimeInterface $from, string $reason): Representation
+    /**
+     * @param  string  $policy  key of `organization.representation_policies`
+     * @param  list<RepresentationScope>  $scopes
+     * @param  string  $checkedDocument  the document or ground that was checked (recorded as the representation's basis)
+     */
+    public function handle(string $policy, Person $representative, Person $represented, array $scopes, string $checkedDocument, DateTimeInterface $from, ?DateTimeInterface $until, string $reason): Representation
     {
-        if (! in_array($method, self::ROLE_METHODS, true)) {
-            throw new InvalidArgumentException('A role establishes a representation by its decision or a checked document.');
-        }
+        $rules = $this->policy($policy);
+        $from = CarbonImmutable::instance($from)->utc();
+        $until = $until === null ? null : CarbonImmutable::instance($until)->utc();
+        $this->checkRequest($rules, $scopes, $checkedDocument, $from, $until);
 
-        return $this->operation->within(fn () => DB::transaction(function () use ($representative, $represented, $scopes, $method, $basis, $from, $reason): Representation {
-            $this->decider->authorize(Permission::RepresentationsEstablish, $this->unitOf($represented), 'person', $represented->public_id);
+        return $this->operation->within(fn () => DB::transaction(function () use ($policy, $rules, $representative, $represented, $scopes, $checkedDocument, $from, $until, $reason): Representation {
+            $unit = $this->unitOf($represented, $rules);
+            $this->decider->authorize(Permission::RepresentationsEstablish, $unit, 'person', $represented->public_id);
+            $maxAge = $rules['represented']['max_age'] ?? null;
+            if ($maxAge !== null && ($represented->birth_date === null || $represented->birth_date->diffInYears($from) > $maxAge)) {
+                throw ValidationException::withMessages(['represented' => __('organization.validation.representation_person_not_covered')]);
+            }
 
-            return $this->grant->handle($representative, $represented, $scopes, $method, $basis, $from, $reason);
+            $representation = $this->grant->handle($representative, $represented, $scopes, RepresentationMethod::from($rules['method']), trim($checkedDocument), $from, $reason);
+            if ($until !== null) {
+                $representation = $this->reason->because($reason, fn () => $representation->end($until));
+            }
+            $this->audit->handle('representation.established_by_role', 'person', $represented->public_id, organizationId: $unit->public_id, reason: $reason, after: [
+                'policy' => $policy,
+                'method' => $rules['method'],
+                'checked_document' => trim($checkedDocument),
+                'scopes' => RepresentationScope::normalize($scopes),
+                'until' => $until?->format('Y-m-d H:i:s.u'),
+            ]);
+
+            return $representation;
         }));
     }
 
-    /** A unit in the operator's scope where the represented person is a current member; otherwise not found. */
-    private function unitOf(Person $represented): Organization
+    /** @return array<string, mixed> */
+    private function policy(string $policy): array
+    {
+        $rules = config('organization.representation_policies.'.$policy);
+        if (! is_array($rules)) {
+            throw ValidationException::withMessages(['policy' => __('organization.validation.representation_policy_missing')]);
+        }
+        if (! in_array($rules['method'] ?? null, [RepresentationMethod::Document->value, RepresentationMethod::RoleDecision->value], true)) {
+            throw new LogicException('A representation policy for a role uses a checked document or a role decision.');
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @param  array<string, mixed>  $rules
+     * @param  list<RepresentationScope>  $scopes
+     */
+    private function checkRequest(array $rules, array $scopes, string $checkedDocument, CarbonImmutable $from, ?CarbonImmutable $until): void
+    {
+        if (trim($checkedDocument) === '') {
+            throw ValidationException::withMessages(['checked_document' => __('organization.validation.representation_document_required')]);
+        }
+        if (array_diff(RepresentationScope::normalize($scopes), $rules['scopes'] ?? []) !== []) {
+            throw ValidationException::withMessages(['scopes' => __('organization.validation.representation_scope_not_allowed')]);
+        }
+        $maxDays = $rules['max_days'] ?? null;
+        if ($maxDays !== null && ($until === null || $until->greaterThan($from->addDays($maxDays)))) {
+            throw ValidationException::withMessages(['until' => __('organization.validation.representation_until_required', ['days' => $maxDays])]);
+        }
+    }
+
+    /**
+     * A unit in the operator's scope (and allowed by the policy) where the represented person is a current member
+     * with a function the policy covers; otherwise not found.
+     *
+     * @param  array<string, mixed>  $rules
+     */
+    private function unitOf(Person $represented, array $rules): Organization
     {
         $actor = $this->context->current();
         $operator = $actor->type === ActorType::Account ? User::query()->find($actor->identifier) : null;
-        $memberOf = Membership::query()->where('person_id', $represented->id)->activeAt(CarbonImmutable::now('UTC'))->orderBy('id')->pluck('organization_id')->all();
+        $memberships = Membership::query()->where('person_id', $represented->id)->activeAt(CarbonImmutable::now('UTC'))->orderBy('id')
+            ->when(($rules['represented']['functions'] ?? null) !== null, fn ($query) => $query->whereIn('function', $rules['represented']['functions']))
+            ->with('organization')->get()
+            ->filter(fn (Membership $membership) => ($rules['organizations'] ?? null) === null || in_array($membership->organization->public_id, $rules['organizations'], true));
+        $memberOf = $memberships->pluck('organization_id')->unique()->values()->all();
         $inScope = $operator === null ? [] : array_values(array_intersect($memberOf, $this->decider->grantedOrganizationIds($operator, Permission::RepresentationsEstablish)));
         if ($inScope !== []) {
             return Organization::query()->findOrFail($inScope[0]);

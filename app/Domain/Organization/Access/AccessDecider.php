@@ -504,21 +504,13 @@ final class AccessDecider
     }
 
     /**
-     * Overall reason when no assignment matched. An assignment that would match but for the account's security
-     * conditions (E3.8) is named, so the user is sent to verify the e-mail or set up MFA instead of a bare denial.
+     * Overall reason when no assignment matched; an unmet security condition of the account (E3.8) is named.
      *
      * @param  list<array{assignment: string, outcome: string}>  $considered
      */
     private function denialReason(array $considered): string
     {
-        $outcomes = array_column($considered, 'outcome');
-        foreach ([PrivilegedAccessPolicy::REASON_EMAIL_UNVERIFIED, PrivilegedAccessPolicy::REASON_MFA_REQUIRED] as $reason) {
-            if (in_array($reason, $outcomes, true)) {
-                return $reason;
-            }
-        }
-
-        return AccessDecision::REASON_NO_MATCHING_ASSIGNMENT;
+        return $this->privileged->unmetAmong(array_column($considered, 'outcome')) ?? AccessDecision::REASON_NO_MATCHING_ASSIGNMENT;
     }
 
     /** @param array<string, mixed> $basis */

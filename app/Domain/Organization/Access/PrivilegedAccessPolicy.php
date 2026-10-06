@@ -47,6 +47,23 @@ final class PrivilegedAccessPolicy
         return $account->hasConfirmedTwoFactor() && ! $account->two_factor_confirmed_at->greaterThan($at);
     }
 
+    /**
+     * The security condition to name when no assignment matched, so the user is sent to verify the e-mail or to
+     * set up MFA instead of getting a bare denial; null when no assignment failed only on those conditions.
+     *
+     * @param  list<string>  $outcomes  outcome of each considered assignment
+     */
+    public function unmetAmong(array $outcomes): ?string
+    {
+        foreach ([self::REASON_EMAIL_UNVERIFIED, self::REASON_MFA_REQUIRED] as $reason) {
+            if (in_array($reason, $outcomes, true)) {
+                return $reason;
+            }
+        }
+
+        return null;
+    }
+
     /** @return list<string> */
     public function privilegedPermissions(): array
     {

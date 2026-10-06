@@ -150,6 +150,8 @@ class OrganizationTest extends TestCase
                 $this->fail('Missing reason was accepted.');
             } catch (InvalidArgumentException $exception) {
                 $this->assertStringContainsString('Audit reason', $exception->getMessage());
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('reason', $exception->errors(), 'Archiwizacja odrzuca pusty powód po polsku (E3.10a1).');
             }
         }
 

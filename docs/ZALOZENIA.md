@@ -974,29 +974,62 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   wskazówkę zamiast „nie znaleziono” (`AccessDecider::blockedBySecurityCondition`).
 - **Weryfikacja:** `E2OperationsAuthorizationTest` (14 przypadków).
 
-## Z-043 — Centralna kontrola struktury i założenie organizacji (E3.10a, 2026-10-06)
+## Z-043 — Centralna kontrola struktury i założenie organizacji (E3.10a, doprecyzowane decyzjami Jakuba w E3.10a1, 2026-10-07)
 
-- **Założenie organizacji** (`FoundOrganization`): podstawowa funkcja UDZIO dla każdego konta z potwierdzonym
-  e-mailem (bez uprawnień platformy). W jednej transakcji: organizacja, rola założyciela według
-  `organization.founding.founder_role` i jej przypisanie założycielowi na organizację z jednostkami podrzędnymi;
-  audyt `organization.founded`. Założyciel dostaje prawa wyłącznie w tej organizacji (Z-040 pkt 3); rola jest
-  uprzywilejowana, więc działa dopiero z MFA (Z-038). Proces techniczny ani anonimowe żądanie nie zakłada
-  organizacji. **Założenia do przeglądu:** skład roli założyciela (wszystkie uprawnienia zarządcze organizacji;
-  bez `people.protected.view` i `data.export` — dane szczególnie chronione i eksport nadawane osobno) i brak
-  limitu liczby zakładanych organizacji (ochrona przed nadużyciem — E12.4).
-- **Katalog „wszystkie role” (`*`):** wpis katalogu nadawania obejmujący każdą aktywną rolę organizacji roli
-  zarządzającej i jej jednostek podrzędnych — także role utworzone później. Powód: nikt nie zmienia roli, którą sam
-  ma (E3.6), więc jedyny założyciel nie mógłby nigdy dopisać nowych ról do swojego katalogu. Ochrona przed
-  eskalacją bez zmian: kto nie ma `*`, nie nada roli z `*` ani z wpisem spoza własnego katalogu
-  (`delegation_power_exceeds_own`); role obcych organizacji nigdy nie są objęte.
-- **Kontrola operacji struktury** (wewnątrz akcji, każda droga — ekran, API, komenda — przez ten sam mechanizm):
-  - utworzenie jednostki (`CreateOrganizationUnit`) — `structure.manage` nad jednostką nadrzędną; nikt nie dostaje
-    automatycznie roli w nowej jednostce, prawa sięgają jej przez dziedziczenie istniejących przypisań;
-  - przeniesienie (`MoveOrganization`) — `structure.manage` nad jednostką (w obecnym miejscu) i nad nowym rodzicem;
-    odłączenie (stanie się korzeniem) — nad jednostką; sprawdzenie po kontrolach odczytu, więc odrzucony ruch nic
-    nie zapisuje;
-  - zmiana nazwy i archiwizacja (`RenameOrganization`, `ArchiveOrganization`) — `organization.manage`.
-  - `CreateOrganization` tworzy sam rekord, bez własnej kontroli — tylko przez akcje powyżej; brak wejścia HTTP.
-- **Testy:** przygotowanie danych przez akcje struktury odbywa się w trybie systemowym z celem testowym
-  (`Tests\Support\RunsAsSystem`); liczniki audytu w testach struktury liczą wpisy zmian bez `access.granted`.
-- **Weryfikacja:** `StructureControlTest` (6 przypadków).
+### Założenie organizacji
+
+- **Kto:** każde konto z potwierdzonym e-mailem (`FoundOrganization`) — podstawowa funkcja UDZIO, bez uprawnień
+  platformy. W jednej transakcji: organizacja, rola założyciela (`organization.founding.founder_role`) i jej
+  przypisanie założycielowi na organizację z jednostkami; audyt `organization.founded`. Proces techniczny ani
+  anonimowe żądanie nie zakłada organizacji.
+- **Rola założyciela** — wszystkie uprawnienia potrzebne do zarządzania własną organizacją i strukturą; **bez**
+  dostępu do danych szczególnie chronionych (`people.protected.view`), eksportu (`data.export`) i praw platformy.
+  Założyciel może później utworzyć odpowiednie role i nadać je zgodnie z katalogiem, audytem i MFA. Rola nie działa
+  przed potwierdzeniem e-maila (warunek założenia) i przed włączeniem MFA (polityka roli i uprawnienia
+  uprzywilejowane, Z-038). Ekran po założeniu (E3.10b) wyjaśnia po polsku, że organizacja istnieje, ale zarządzanie
+  wymaga MFA, i prowadzi do ustawień bezpieczeństwa.
+- **Ochrona przed automatycznym zakładaniem** (bez stałego limitu organizacji na konto — jedna osoba może legalnie
+  zarządzać kilkoma organizacjami; polityka biznesowa, opłaty i wyższe limity — E12.4):
+  - limit prób na konto: `organization.founding.attempts_per_hour` (10; liczone udane i odrzucone) — potem 429
+    z polskim komunikatem i odmowa w audycie (`founding_rate_limited`);
+  - klucz żądania formularza (`RunIdempotently`, zakres `organization.found`): ponowne wysłanie tego samego
+    formularza — także równoczesne — zwraca już założoną organizację; ten sam klucz z inną nazwą — odmowa;
+  - próby jednego konta są szeregowane blokadą jego wiersza;
+  - `organization.founding.max_per_account` (domyślnie `null` — brak limitu) można ustawić później bez przebudowy;
+    przekroczenie — odmowa `founding_limit_reached` z audytem;
+  - odmowy (niepotwierdzony e-mail, brak konta, limit) — audyt `access.denied`.
+
+### Katalog „wszystkie role” (`*`)
+
+- Obejmuje wszystkie obecne i przyszłe role utworzone przez tę organizację i w jej jednostkach, nadawane wyłącznie
+  w zakresie tej organizacji (`AccessDecider::rolesUnder`, `roleUnder`). Założyciel może dzięki temu utworzyć
+  drugiego administratora organizacji lub przekazać zarządzanie — bez praw administratora platformy.
+- Nigdy nie obejmuje: ról platformy (osobny model `platform_role_assignments` i `PlatformAccess`), ról innej
+  organizacji, uprawnień technicznych `SystemAuthority` ani procedur instalacyjnych i awaryjnych (uprawnienia
+  `platform.*` nie należą do katalogu uprawnień organizacji — rola z nimi jest odrzucana przy tworzeniu).
+- Zabezpieczenia bez zmian: zakaz samonadania, zatwierdzenia własnego wniosku, zmiany własnej roli, pośredniej
+  eskalacji; kto nie ma `*`, nie nada roli z `*` (`delegation_power_exceeds_own`).
+
+### Cała organizacja a jednostka
+
+| Operacja | Wymagane prawo |
+|---|---|
+| zmiana nazwy / danych całej organizacji (korzenia) | `organization.manage` w organizacji |
+| archiwizacja całej organizacji | `organization.manage`, a dla osoby także MFA i jawne potwierdzenie (ponownie wpisana nazwa organizacji); powód zawsze; audyt; ekran z ostrzeżeniem o skutkach (E3.10b) |
+| zmiana nazwy jednostki | `structure.manage` w tej jednostce |
+| utworzenie jednostki | `structure.manage` w jednostce nadrzędnej |
+| przeniesienie jednostki | `structure.manage` w jednostce, w jej dotychczasowej i w nowej jednostce nadrzędnej |
+| archiwizacja jednostki | `structure.manage` w jednostce i w jej jednostce nadrzędnej |
+
+- Lokalny administrator zarządza swoją częścią struktury, ale nie zmienia całej organizacji ani nie przenosi
+  jednostki tam (ani stamtąd), gdzie nie zarządza.
+- Decyzje operacji obejmującej kilka jednostek zapadają razem (`AccessDecider::authorizeAll`): najpierw wszystkie
+  oceny, odmowa zapisana i zgłoszona przed zapisem jakiejkolwiek zgody.
+- Archiwizacja nie usuwa historii, audytu, przypisań ani dawnego położenia jednostki.
+- `CreateOrganization` tworzy sam rekord, bez własnej kontroli — tylko przez akcje powyżej; brak wejścia HTTP.
+
+### Testy
+
+- Przygotowanie danych przez akcje struktury w trybie systemowym z celem testowym (`Tests\Support\RunsAsSystem`);
+  liczniki audytu w testach struktury liczą wpisy zmian bez `access.granted`.
+- `StructureControlTest` (15 przypadków), `FoundingConcurrencyTest` (dwa procesy, ten sam formularz).

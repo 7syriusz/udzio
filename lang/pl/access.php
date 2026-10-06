@@ -11,6 +11,8 @@ return [
     'mfa_required' => 'Ta czynność wymaga uwierzytelniania dwuskładnikowego. Włącz je w ustawieniach bezpieczeństwa konta, a uprawnienia zaczną działać.',
     'email_unverified' => 'Potwierdź adres e-mail konta, aby korzystać z uprawnień przypisanej roli.',
     'escalation_required' => 'Tej sprawy nie można rozstrzygnąć w Twoim zakresie — wymaga rozstrzygnięcia na wyższym poziomie.',
+    'founding_limit_reached' => 'Osiągnięto limit organizacji, które możesz założyć.',
+    'confirmation_missing' => 'Operacja nie została potwierdzona. Wpisz dokładnie nazwę organizacji, aby ją zarchiwizować.',
     'mfa_setup' => 'Przejdź do ustawień bezpieczeństwa konta',
 
 ];

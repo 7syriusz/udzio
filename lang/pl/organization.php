@@ -6,6 +6,10 @@ return [
     | Organizacja, struktura, członkostwo i role (E3, przeniesione do tłumaczeń w E3.6b).
     */
 
+    'founding' => [
+        'too_many_attempts' => 'Zbyt wiele prób założenia organizacji. Spróbuj ponownie później.',
+    ],
+
     'validation' => [
         'representation_policy_missing' => 'Organizacja nie przewiduje ustanawiania takiej reprezentacji przez uprawnioną osobę.',
         'representation_document_required' => 'Wpisz dokument lub podstawę, którą sprawdzono.',

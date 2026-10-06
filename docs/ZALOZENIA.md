@@ -1033,3 +1033,25 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - Przygotowanie danych przez akcje struktury w trybie systemowym z celem testowym (`Tests\Support\RunsAsSystem`);
   liczniki audytu w testach struktury liczą wpisy zmian bez `access.granted`.
 - `StructureControlTest` (15 przypadków), `FoundingConcurrencyTest` (dwa procesy, ten sam formularz).
+
+## Z-044 — Ekrany organizacji i struktury (E3.10b, 2026-10-07)
+
+- **Trasy** (`auth` + `verified`; odczyt przez `DataVisibility` — organizacja poza widocznością konta: 404 z audytem;
+  zmiany wyłącznie przez akcje domenowe z centralną kontrolą Z-043):
+
+  | Ścieżka | Co robi |
+  |---|---|
+  | `GET /organizations` | lista organizacji widocznych dla konta (najwyższe widoczne jednostki) oraz organizacji, w których rola czeka na MFA, z odnośnikiem do ustawień bezpieczeństwa |
+  | `GET /organizations/new`, `POST /organizations` | założenie organizacji; formularz z kluczem żądania (ponowne wysłanie nie zakłada drugiej), limit 20 żądań/min na trasie i limit prób w domenie (429 z polskim komunikatem); po założeniu komunikat, że zarządzanie wymaga MFA, z odnośnikiem do ustawień bezpieczeństwa |
+  | `GET /organizations/{id}` | organizacja lub jednostka: położenie (widoczni przodkowie), drzewo widocznych jednostek; formularze tylko tam, gdzie konto ma prawo (decyzja i tak zapada ponownie przy zapisie) |
+  | `POST /organizations/{id}/units` | nowa jednostka podrzędna (nazwa, powód) |
+  | `PUT /organizations/{id}/name` | zmiana nazwy (organizacja — `organization.manage`, jednostka — `structure.manage`) |
+  | `PUT /organizations/{id}/parent` | przeniesienie jednostki; lista celów: widoczne jednostki tej organizacji, którymi konto zarządza, bez samej jednostki, jej potomków i obecnego rodzica |
+  | `GET /organizations/{id}/archive`, `POST …/archive` | ostrzeżenie o skutkach; powód; przy całej organizacji ponownie wpisana nazwa (sprawdzana w formularzu i w domenie) i MFA |
+
+- **Odmowy:** brak prawa przy widocznej organizacji — 403 z polskim komunikatem (przy braku MFA — wskazówka
+  z odnośnikiem); organizacja obca — 404; błędy formularzy po polsku przy polach.
+- **Poza zakresem E3.10b:** odłączenie jednostki do nowej, samodzielnej organizacji (operacja domenowa istnieje,
+  ekranu brak), widok organizacji zarchiwizowanych (historia — z `structure.history.view`, przy ekranach historii),
+  członkowie i role — E3.11.
+- **Weryfikacja:** `OrganizationScreensTest` (9 przypadków HTTP).

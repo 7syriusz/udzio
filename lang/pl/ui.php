@@ -17,6 +17,7 @@ return [
         'contacts' => 'Kontakty',
         'represented' => 'Osoby reprezentowane',
         'security' => 'Bezpieczeństwo',
+        'organizations' => 'Organizacje',
         'logout' => 'Wyloguj',
     ],
 

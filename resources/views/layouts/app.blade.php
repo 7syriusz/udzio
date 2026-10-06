@@ -16,6 +16,7 @@
             <a href="{{ route('account.contacts.index') }}" class="text-blue-700 underline">{{ __('ui.nav.contacts') }}</a>
             <a href="{{ route('account.represented.index') }}" class="text-blue-700 underline">{{ __('ui.nav.represented') }}</a>
             <a href="{{ route('account.security') }}" class="text-blue-700 underline">{{ __('ui.nav.security') }}</a>
+            <a href="{{ route('organizations.index') }}" class="text-blue-700 underline">{{ __('ui.nav.organizations') }}</a>
             <form method="POST" action="{{ route('logout') }}" class="ml-auto">
                 @csrf
                 <button type="submit" class="text-sm underline">{{ __('ui.nav.logout') }}</button>

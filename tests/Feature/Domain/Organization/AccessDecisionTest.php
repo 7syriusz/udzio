@@ -32,11 +32,12 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Tests\Fixtures\AnyScopeTestPurpose;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 class AccessDecisionTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     private Organization $headquarters;
 
@@ -58,8 +59,8 @@ class AccessDecisionTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-01-01 10:00:00', 'UTC'));
         [$this->headquarters, $this->region, $this->branch, $this->foreign] = Organization::factory()->count(4)->create()->all();
         $move = $this->app->make(MoveOrganization::class);
-        $move->handle($this->region, $this->headquarters, 'Struktura');
-        $move->handle($this->branch, $this->region, 'Struktura');
+        $this->asSystem(fn () => $move->handle($this->region, $this->headquarters, 'Struktura'));
+        $this->asSystem(fn () => $move->handle($this->branch, $this->region, 'Struktura'));
         $this->system(function (): void {
             $this->coordinator = $this->app->make(CreateAccessRole::class)->handle($this->headquarters, 'Koordynator', ['members.view', 'members.manage'], 'Rola');
             $this->administrator = $this->app->make(CreateAccessRole::class)->handle($this->headquarters, 'Administrator', ['members.view', 'members.manage', 'roles.assign', 'roles.manage'], 'Rola');
@@ -135,7 +136,7 @@ class AccessDecisionTest extends TestCase
         $oldLink = OrganizationParent::query()->where('organization_id', $this->branch->id)->whereNull('valid_to')->sole();
         $this->travel(1)->minute();
 
-        $this->app->make(MoveOrganization::class)->handle($this->branch, $this->headquarters, 'Reorganizacja');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->branch, $this->headquarters, 'Reorganizacja'));
 
         $this->assertTrue($this->decide($this->branch)->denied(), 'Obecnie jednostka jest poza zakresem.');
         $past = $this->decide($this->branch, at: $before);
@@ -167,7 +168,7 @@ class AccessDecisionTest extends TestCase
         $beforeRetirement = now()->toImmutable();
         $this->travel(1)->minute();
 
-        $this->app->make(ArchiveOrganization::class)->handle($this->branch, 'Likwidacja');
+        $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($this->branch, 'Likwidacja'));
         $this->assertSame(AccessDecision::REASON_TARGET_INACTIVE, $this->decide($this->branch)->reason, 'Jednostka zarchiwizowana.');
 
         $this->system(fn () => $this->app->make(RetireAccessRole::class)->handle($this->coordinator, 'Wycofanie'));

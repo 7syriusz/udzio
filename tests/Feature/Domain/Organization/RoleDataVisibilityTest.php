@@ -26,12 +26,13 @@ use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\Fixtures\AnyScopeTestPurpose;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 /** E3.7a: data isolation revised after the E3.6 review — role data follows the role-granting catalog. */
 class RoleDataVisibilityTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     private Organization $company;
 
@@ -52,7 +53,7 @@ class RoleDataVisibilityTest extends TestCase
         parent::setUp();
         $this->travelTo(CarbonImmutable::parse('2026-01-01 10:00:00', 'UTC'));
         [$this->company, $this->office, $this->foreign] = Organization::factory()->count(3)->create()->all();
-        $this->app->make(MoveOrganization::class)->handle($this->office, $this->company, 'Struktura');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->office, $this->company, 'Struktura'));
         $this->system(function (): void {
             $create = $this->app->make(CreateAccessRole::class);
             $this->accountant = $create->handle($this->company, 'Księgowy', ['audit.view'], 'Rola');
@@ -166,7 +167,7 @@ class RoleDataVisibilityTest extends TestCase
         $before = now()->addSecond()->toImmutable();
         $this->travel(1)->minute();
 
-        $this->app->make(MoveOrganization::class)->handle($this->office, null, 'Wydzielenie');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->office, null, 'Wydzielenie'));
 
         $this->assertSame([$this->company->id], $this->visibility()->organizations($admin)->pluck('id')->all());
         $this->assertEqualsCanonicalizing([$this->company->id, $this->office->id], $this->visibility()->organizations($admin, at: $before)->pluck('id')->all());

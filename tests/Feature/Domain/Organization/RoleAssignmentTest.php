@@ -25,11 +25,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use LogicException;
 use Tests\Fixtures\AnyScopeTestPurpose;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 class RoleAssignmentTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     private Organization $headquarters;
 
@@ -51,8 +52,8 @@ class RoleAssignmentTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-01-01 10:00:00', 'UTC'));
         [$this->headquarters, $this->region, $this->branch, $this->otherOrganization] = Organization::factory()->count(4)->create()->all();
         $move = $this->app->make(MoveOrganization::class);
-        $move->handle($this->region, $this->headquarters, 'Struktura');
-        $move->handle($this->branch, $this->region, 'Struktura');
+        $this->asSystem(fn () => $move->handle($this->region, $this->headquarters, 'Struktura'));
+        $this->asSystem(fn () => $move->handle($this->branch, $this->region, 'Struktura'));
         $this->role = $this->app->make(CreateAccessRole::class)->handle($this->headquarters, 'Koordynator', ['members.view', 'members.manage'], 'Rola');
         $this->account = User::factory()->create();
         $this->travel(1)->minute();
@@ -91,7 +92,7 @@ class RoleAssignmentTest extends TestCase
         $this->assertFalse($assignment->covers($this->otherOrganization, $before), 'Obca organizacja nigdy nie jest w zakresie.');
 
         $this->travel(1)->minute();
-        $this->app->make(MoveOrganization::class)->handle($this->branch, $this->headquarters, 'Reorganizacja');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->branch, $this->headquarters, 'Reorganizacja'));
 
         $this->assertFalse($assignment->covers($this->branch, now()), 'Po przeniesieniu jednostka wypada z zakresu.');
         $this->assertTrue($assignment->covers($this->branch, $before), 'Historia zakresu zostaje.');
@@ -149,7 +150,7 @@ class RoleAssignmentTest extends TestCase
 
     public function test_retired_role_or_archived_scope_cannot_be_assigned(): void
     {
-        $this->app->make(ArchiveOrganization::class)->handle($this->branch, 'Likwidacja');
+        $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($this->branch, 'Likwidacja'));
         $retired = $this->app->make(RetireAccessRole::class)->handle(
             $this->app->make(CreateAccessRole::class)->handle($this->headquarters, 'Stara', ['members.view'], 'Rola'),
             'Wycofana',

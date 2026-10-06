@@ -22,11 +22,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use LogicException;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 class MembershipTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     private Person $person;
 
@@ -176,7 +177,7 @@ class MembershipTest extends TestCase
     public function test_archived_organization_accepts_no_admission_or_transfer(): void
     {
         [$active, $archived] = Organization::factory()->count(2)->create()->all();
-        $this->app->make(ArchiveOrganization::class)->handle($archived, 'Likwidacja koła');
+        $this->asSystem(fn () => $this->app->make(ArchiveOrganization::class)->handle($archived, 'Likwidacja koła'));
         $membership = $this->admit($active);
 
         foreach ([fn () => $this->admit($archived), fn () => $this->app->make(TransferMembership::class)->handle($membership, $archived, 'x')] as $attempt) {

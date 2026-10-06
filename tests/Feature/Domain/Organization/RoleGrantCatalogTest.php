@@ -29,6 +29,7 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Tests\Fixtures\AnyScopeTestPurpose;
+use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
 /**
@@ -37,7 +38,7 @@ use Tests\TestCase;
  */
 class RoleGrantCatalogTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase, RunsAsSystem;
 
     private Organization $company;
 
@@ -60,7 +61,7 @@ class RoleGrantCatalogTest extends TestCase
         parent::setUp();
         $this->travelTo(CarbonImmutable::parse('2026-01-01 10:00:00', 'UTC'));
         [$this->company, $this->office, $this->foreign] = Organization::factory()->count(3)->create()->all();
-        $this->app->make(MoveOrganization::class)->handle($this->office, $this->company, 'Struktura');
+        $this->asSystem(fn () => $this->app->make(MoveOrganization::class)->handle($this->office, $this->company, 'Struktura'));
         $this->system(function (): void {
             $create = $this->app->make(CreateAccessRole::class);
             $this->accountant = $create->handle($this->company, 'Księgowy', ['members.view', 'audit.view'], 'Rola');

@@ -2,22 +2,33 @@
 
 namespace App\Domain\Organization\Actions;
 
+use App\Domain\Organization\Access\AccessDecider;
 use App\Domain\Organization\Enums\OrganizationStatus;
+use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\OrganizationParent;
 use App\Domain\Platform\AuditReason;
+use App\Domain\Platform\OperationCorrelation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Moves a unit under another parent, or makes it a root (structure.manage over the unit and over the new parent,
+ * authorized centrally, E3.10a). History of where a unit was is kept as periods (E3.2).
+ */
 final class MoveOrganization
 {
-    public function __construct(private readonly AuditReason $reason) {}
+    public function __construct(
+        private readonly AuditReason $reason,
+        private readonly AccessDecider $access,
+        private readonly OperationCorrelation $operation,
+    ) {}
 
     /** A null parent makes the organization a root. Moves take effect now, never retroactively. */
     public function handle(Organization $organization, ?Organization $parent, string $reason): ?OrganizationParent
     {
-        return $this->reason->because($reason, fn () => DB::transaction(function () use ($organization, $parent): ?OrganizationParent {
+        return $this->operation->within(fn () => $this->reason->because($reason, fn () => DB::transaction(function () use ($organization, $parent): ?OrganizationParent {
             // Organizations cannot be deleted: the oldest row is a stable mutex for all graph writes.
             Organization::query()->orderBy('id')->lockForUpdate()->firstOrFail();
             $currentOrganization = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->firstOrFail();
@@ -36,6 +47,11 @@ final class MoveOrganization
                 $ancestor = OrganizationParent::query()->where('organization_id', $ancestor)->whereNull('valid_to')->lockForUpdate()->first()?->parent_id;
             }
 
+            // Central control (E3.10a), after the read-only checks so a refused move writes nothing: structure.manage over the unit where it is now and over its new parent.
+            $this->access->authorize(Permission::StructureManage, $currentOrganization);
+            if ($currentParent !== null) {
+                $this->access->authorize(Permission::StructureManage, $currentParent);
+            }
             $previous = OrganizationParent::query()->where('organization_id', $organization->id)->whereNull('valid_to')->lockForUpdate()->first();
             if ($previous?->parent_id === $currentParent?->id) {
                 return $previous;
@@ -47,6 +63,6 @@ final class MoveOrganization
                 'organization_id' => $currentOrganization->id,
                 'parent_id' => $currentParent->id,
             ], $at);
-        }, attempts: 3));
+        }, attempts: 3)));
     }
 }

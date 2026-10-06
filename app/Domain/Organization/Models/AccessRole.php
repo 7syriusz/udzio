@@ -21,6 +21,9 @@ class AccessRole extends Model implements ClassifiesData
 {
     use AuditsChanges, HasUlids, HasVersions;
 
+    /** Catalog entry for every role of the managing role's organization and the units below it (Z-043). */
+    public const ANY_ROLE = '*';
+
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
     protected $guarded = ['id', 'active_name_key'];

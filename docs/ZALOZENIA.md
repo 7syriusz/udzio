@@ -973,3 +973,30 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   — obie mogą udostępnić konto lub dane innej osoby (decyzja Jakuba). Odmowa z powodu MFA lub e-maila daje polską
   wskazówkę zamiast „nie znaleziono” (`AccessDecider::blockedBySecurityCondition`).
 - **Weryfikacja:** `E2OperationsAuthorizationTest` (14 przypadków).
+
+## Z-043 — Centralna kontrola struktury i założenie organizacji (E3.10a, 2026-10-06)
+
+- **Założenie organizacji** (`FoundOrganization`): podstawowa funkcja UDZIO dla każdego konta z potwierdzonym
+  e-mailem (bez uprawnień platformy). W jednej transakcji: organizacja, rola założyciela według
+  `organization.founding.founder_role` i jej przypisanie założycielowi na organizację z jednostkami podrzędnymi;
+  audyt `organization.founded`. Założyciel dostaje prawa wyłącznie w tej organizacji (Z-040 pkt 3); rola jest
+  uprzywilejowana, więc działa dopiero z MFA (Z-038). Proces techniczny ani anonimowe żądanie nie zakłada
+  organizacji. **Założenia do przeglądu:** skład roli założyciela (wszystkie uprawnienia zarządcze organizacji;
+  bez `people.protected.view` i `data.export` — dane szczególnie chronione i eksport nadawane osobno) i brak
+  limitu liczby zakładanych organizacji (ochrona przed nadużyciem — E12.4).
+- **Katalog „wszystkie role” (`*`):** wpis katalogu nadawania obejmujący każdą aktywną rolę organizacji roli
+  zarządzającej i jej jednostek podrzędnych — także role utworzone później. Powód: nikt nie zmienia roli, którą sam
+  ma (E3.6), więc jedyny założyciel nie mógłby nigdy dopisać nowych ról do swojego katalogu. Ochrona przed
+  eskalacją bez zmian: kto nie ma `*`, nie nada roli z `*` ani z wpisem spoza własnego katalogu
+  (`delegation_power_exceeds_own`); role obcych organizacji nigdy nie są objęte.
+- **Kontrola operacji struktury** (wewnątrz akcji, każda droga — ekran, API, komenda — przez ten sam mechanizm):
+  - utworzenie jednostki (`CreateOrganizationUnit`) — `structure.manage` nad jednostką nadrzędną; nikt nie dostaje
+    automatycznie roli w nowej jednostce, prawa sięgają jej przez dziedziczenie istniejących przypisań;
+  - przeniesienie (`MoveOrganization`) — `structure.manage` nad jednostką (w obecnym miejscu) i nad nowym rodzicem;
+    odłączenie (stanie się korzeniem) — nad jednostką; sprawdzenie po kontrolach odczytu, więc odrzucony ruch nic
+    nie zapisuje;
+  - zmiana nazwy i archiwizacja (`RenameOrganization`, `ArchiveOrganization`) — `organization.manage`.
+  - `CreateOrganization` tworzy sam rekord, bez własnej kontroli — tylko przez akcje powyżej; brak wejścia HTTP.
+- **Testy:** przygotowanie danych przez akcje struktury odbywa się w trybie systemowym z celem testowym
+  (`Tests\Support\RunsAsSystem`); liczniki audytu w testach struktury liczą wpisy zmian bez `access.granted`.
+- **Weryfikacja:** `StructureControlTest` (6 przypadków).

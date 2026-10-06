@@ -9,6 +9,7 @@ use App\Domain\Organization\Models\AccessRole;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\OrganizationParent;
 use App\Domain\Organization\Models\RoleAssignment;
+use App\Domain\Organization\OrganizationHierarchy;
 use App\Domain\Platform\Actions\RecordAccessDenial;
 use App\Domain\Platform\Actions\RecordAudit;
 use App\Domain\Platform\ActorContext;
@@ -149,7 +150,8 @@ final class AccessDecider
             }
             $rules = collect($version->content['grant_rules'] ?? [])->keyBy('role');
             $catalog = [...$catalog, ...$rules->filter(fn (array $rule) => $path === [] || $rule['include_descendants'])->keys()->all()];
-            $rule = $rules->get($role->public_id);
+            $rule = $rules->get($role->public_id)
+                ?? ($rules->has(AccessRole::ANY_ROLE) && $this->roleUnder($role, $assignment->role->organization, $at) ? $rules->get(AccessRole::ANY_ROLE) : null);
             $outcome = match (true) {
                 $rule === null => 'role_not_in_catalog',
                 $path !== [] && ! $rule['include_descendants'] => 'scope_not_covering',
@@ -239,7 +241,7 @@ final class AccessDecider
             }
         }
         foreach ($version->content['grant_rules'] ?? [] as $rule) {
-            if (! in_array($rule['role'], $ownCatalog, true)) {
+            if (! in_array($rule['role'], $ownCatalog, true) && ! in_array(AccessRole::ANY_ROLE, $ownCatalog, true)) {
                 $exceeding[] = 'catalog:'.$rule['role'];
             }
         }
@@ -432,13 +434,36 @@ final class AccessDecider
             }
             foreach ($version->content['grant_rules'] ?? [] as $rule) {
                 $units = $rule['include_descendants'] ? $assignment->coveredOrganizationIds($at) : [$assignment->scope_organization_id];
-                $catalog[$rule['role']] = [...($catalog[$rule['role']] ?? []), ...$units];
+                $roles = $rule['role'] === AccessRole::ANY_ROLE ? $this->rolesUnder($assignment->role->organization, $at) : [$rule['role']];
+                foreach ($roles as $rolePublicId) {
+                    $catalog[$rolePublicId] = [...($catalog[$rolePublicId] ?? []), ...$units];
+                }
             }
         }
         $active = Organization::query()->whereKey(array_merge([], ...array_values($catalog)))->get()
             ->filter(fn (Organization $organization) => $organization->isActiveAt($at))->modelKeys();
 
         return array_map(fn (array $units) => array_values(array_intersect(array_unique($units), $active)), $catalog);
+    }
+
+    /** Whether the role belongs to `$owner` or a unit below it at the moment (scope of a `*` catalog entry). */
+    private function roleUnder(AccessRole $role, Organization $owner, CarbonImmutable $at): bool
+    {
+        return $role->organization_id === $owner->id || $this->structurePath($role->organization, $owner, $at) !== null;
+    }
+
+    /**
+     * Public IDs of the active roles of `$owner` and the units below it at the moment (expansion of `*`).
+     *
+     * @return list<string>
+     */
+    private function rolesUnder(Organization $owner, CarbonImmutable $at): array
+    {
+        $units = [$owner->id, ...app(OrganizationHierarchy::class)->descendantsAt($owner, $at)->modelKeys()];
+
+        return AccessRole::query()->whereIn('organization_id', $units)->get()
+            ->filter(fn (AccessRole $role) => ($role->versionAt($at)?->content['status'] ?? null) === AccessRoleStatus::Active->value)
+            ->pluck('public_id')->values()->all();
     }
 
     /**

@@ -34,6 +34,8 @@ class AccessDenied extends AuthorizationException
             'mfa_required' => 'access.mfa_required',
             'email_unverified' => 'access.email_unverified',
             'candidate_outside_scope', 'candidates_outside_scope' => 'access.escalation_required',
+            'founding_limit_reached' => 'access.founding_limit_reached',
+            'confirmation_missing' => 'access.confirmation_missing',
             default => 'access.unauthorized',
         };
     }

@@ -52,6 +52,12 @@ class Organization extends Model implements ClassifiesData
     }
 
     /** Whether the organization was active at `$at` (archiving is one-way and time-stamped). */
+    /** Whether the organization has no parent at the moment — a whole organization rather than a unit (E3.10a1). */
+    public function isRootAt(DateTimeInterface $at): bool
+    {
+        return OrganizationParent::query()->where('organization_id', $this->id)->activeAt($at)->doesntExist();
+    }
+
     public function isActiveAt(DateTimeInterface $at): bool
     {
         return $this->archived_at === null || $this->archived_at->greaterThan(CarbonImmutable::instance($at));

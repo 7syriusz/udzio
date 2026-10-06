@@ -90,6 +90,26 @@ final class AccessDecider
     }
 
     /**
+     * One operation needing `$permission` over several units (e.g. a move: the unit, its old and its new parent,
+     * E3.10a1). Every decision is made first; a denial is recorded and thrown before any grant is written, so a
+     * refused operation leaves no partial grants.
+     *
+     * @param  list<Organization>  $targets
+     */
+    public function authorizeAll(Permission $permission, array $targets, string $subjectType = 'organization', ?string $subjectId = null): void
+    {
+        foreach ($targets as $target) {
+            $decision = $this->decideForActor($permission, $target);
+            if ($decision->denied()) {
+                $this->record($decision, $permission, $target, $subjectType, $subjectId);
+            }
+        }
+        foreach ($targets as $target) {
+            $this->authorize($permission, $target, $subjectType, $subjectId);
+        }
+    }
+
+    /**
      * Decision on assigning, approving or revoking `$role` in `$scope` by `$account` (E3.6a). Allowed when an
      * active assignment of the account holds `roles.assign`, covers `$scope` (its own inheritance policy) and
      * its role version lists `$role` in the role-granting catalog with a rule that allows this unit and

@@ -37,6 +37,11 @@ return [
     ],
 
     'founding' => [
+        // Protection against automated founding (E3.10a1): attempts per account per hour (successful and refused),
+        // and an optional limit of organizations founded by one account — null: no limit yet (business policy, E12.4).
+        'attempts_per_hour' => 10,
+        'max_per_account' => null,
+
         // Role the founder of a new organization receives in it (E3.10a, Z-043) — rights in that organization only,
         // never platform rights. Its catalog covers every role of the organization and its units ('*'), so the
         // founder can hand out roles defined later; it requires MFA (privileged permissions and its own policy).

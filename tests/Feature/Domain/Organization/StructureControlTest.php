@@ -9,6 +9,7 @@ use App\Domain\Organization\Actions\AssignRole;
 use App\Domain\Organization\Actions\CreateAccessRole;
 use App\Domain\Organization\Actions\CreateOrganizationUnit;
 use App\Domain\Organization\Actions\FoundOrganization;
+use App\Domain\Organization\Actions\GrantPlatformRole;
 use App\Domain\Organization\Actions\MoveOrganization;
 use App\Domain\Organization\Actions\RenameOrganization;
 use App\Domain\Organization\Enums\OrganizationStatus;
@@ -19,13 +20,18 @@ use App\Domain\Organization\Models\AccessRole;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\OrganizationParent;
 use App\Domain\Organization\Models\RoleAssignment;
+use App\Domain\Organization\OrganizationHierarchy;
 use App\Domain\Platform\Actor;
 use App\Domain\Platform\ActorContext;
 use App\Domain\Platform\Exceptions\AccessDenied;
+use App\Domain\Platform\Exceptions\IdempotencyConflict;
 use App\Domain\Platform\Models\AuditEntry;
 use App\Models\User;
 use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\Support\RunsAsSystem;
 use Tests\TestCase;
 
@@ -42,9 +48,9 @@ class StructureControlTest extends TestCase
         return $this->app->make(ActorContext::class)->runAs(Actor::account((string) $account->id), $operation);
     }
 
-    private function found(User $founder, string $name = 'Fundacja Zielona'): Organization
+    private function found(User $founder, string $name = 'Fundacja Zielona', ?string $requestKey = null): Organization
     {
-        $organization = $this->as($founder, fn () => $this->app->make(FoundOrganization::class)->handle($name, 'Założenie organizacji'));
+        $organization = $this->as($founder, fn () => $this->app->make(FoundOrganization::class)->handle($name, 'Założenie organizacji', $requestKey ?? (string) Str::ulid()));
         $this->travel(1)->second();
 
         return $organization;
@@ -92,7 +98,7 @@ class StructureControlTest extends TestCase
         $unverified = User::factory()->unverified()->create();
         $denied = $this->assertDenied(fn () => $this->found($unverified, 'Bez potwierdzenia'), 'email_unverified');
         $this->assertSame('access.email_unverified', $denied->getMessage());
-        $this->assertDenied(fn () => $this->app->make(FoundOrganization::class)->handle('Proces', 'Import'), 'actor_without_account');
+        $this->assertDenied(fn () => $this->app->make(FoundOrganization::class)->handle('Proces', 'Import', (string) Str::ulid()), 'actor_without_account');
         $this->assertSame(1, Organization::query()->count());
     }
 
@@ -131,7 +137,7 @@ class StructureControlTest extends TestCase
         $this->assertSame('Fundacja Zielona', $organization->fresh()->name);
 
         $this->as($founder, fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Fundacja Niebieska', 'Zmiana statutu'));
-        $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Likwidacja'));
+        $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Likwidacja', 'Fundacja Niebieska'));
         $this->assertSame(['Fundacja Niebieska', OrganizationStatus::Archived], [$organization->fresh()->name, $organization->fresh()->status]);
     }
 
@@ -174,5 +180,174 @@ class StructureControlTest extends TestCase
         $this->assertDenied(fn () => $this->as($hrManager, fn () => $this->app->make(AssignRole::class)->handle(User::factory()->create(), $deputy, $organization, ScopeInheritance::UnitOnly, null, 'Zastępca')), 'delegation_power_exceeds_own');
         $this->assertSame(0, RoleAssignment::query()->where('access_role_id', $deputy->id)->count());
         $this->assertInstanceOf(AccessRole::class, $deputy);
+    }
+
+    /** A role in `$organization` given directly by the test (as an earlier administrator would have done). */
+    private function holder(Organization $organization, array $permissions, Organization $scope, ScopeInheritance $inheritance = ScopeInheritance::UnitAndDescendants, bool $mfa = true, bool $requiresMfa = false): User
+    {
+        $role = $this->asSystem(fn () => $this->app->make(CreateAccessRole::class)->handle($organization, 'Rola '.Str::random(6), $permissions, 'Rola', requiresMfa: $requiresMfa));
+        $account = $mfa ? User::factory()->withTwoFactor()->create() : User::factory()->create();
+        $this->asSystem(fn () => $this->app->make(AssignRole::class)->handle($account, $role, $scope, $inheritance, null, 'Nadanie'));
+        $this->travel(1)->second();
+
+        return $account;
+    }
+
+    public function test_founder_catalog_never_contains_platform_roles_or_technical_permissions(): void
+    {
+        config(['platform.roles.support' => ['permissions' => ['platform.mfa.reset'], 'requires_mfa' => true]]);
+        $founder = User::factory()->withTwoFactor()->create();
+        $organization = $this->found($founder);
+        $later = $this->as($founder, fn () => $this->app->make(CreateAccessRole::class)->handle($organization, 'Rola przyszła', ['members.view'], 'Nowa rola'));
+
+        $catalog = $this->app->make(AccessDecider::class)->roleGrantCatalog($founder);
+        $this->assertArrayHasKey($later->public_id, $catalog, 'Przyszła rola organizacji mieści się w katalogu.');
+        foreach (['support', 'administrator', 'platform.install', 'platform.emergency.mfa_reset'] as $platform) {
+            $this->assertArrayNotHasKey($platform, $catalog);
+        }
+        $this->assertDenied(fn () => $this->as($founder, fn () => $this->app->make(GrantPlatformRole::class)->handle(User::factory()->create(), 'support', 'Próba')), 'no_active_assignment');
+        foreach (['platform.install', 'platform.administrators.manage', 'platform.emergency.mfa_reset'] as $technical) {
+            try {
+                $this->as($founder, fn () => $this->app->make(CreateAccessRole::class)->handle($organization, 'Techniczna '.$technical, [$technical], 'Próba'));
+                $this->fail("Uprawnienie spoza organizacji przyjęte: {$technical}");
+            } catch (ValidationException) {
+            }
+        }
+    }
+
+    public function test_founder_role_has_no_protected_data_or_export(): void
+    {
+        $founder = User::factory()->withTwoFactor()->create();
+        $organization = $this->found($founder);
+
+        foreach ([Permission::PeopleProtectedView, Permission::DataExport] as $permission) {
+            $decision = $this->app->make(AccessDecider::class)->decide($founder, $permission, $organization);
+            $this->assertSame('no_matching_assignment', $decision->reason);
+            $this->assertSame('permission_missing', $decision->basis['considered'][0]['outcome']);
+        }
+    }
+
+    public function test_repeated_submission_of_the_founding_form_founds_one_organization(): void
+    {
+        $founder = User::factory()->withTwoFactor()->create();
+        $key = (string) Str::ulid();
+
+        $first = $this->found($founder, 'Fundacja Zielona', $key);
+        $again = $this->found($founder, 'Fundacja Zielona', $key);
+
+        $this->assertTrue($first->is($again));
+        $this->assertSame(1, Organization::query()->count());
+        $this->assertSame(1, AuditEntry::query()->where('action', 'organization.founded')->count());
+        $this->expectException(IdempotencyConflict::class);
+        $this->found($founder, 'Inna nazwa', $key);
+    }
+
+    public function test_founding_attempts_are_limited_and_refusals_audited(): void
+    {
+        config(['organization.founding.attempts_per_hour' => 3]);
+        $founder = User::factory()->withTwoFactor()->create();
+        foreach (range(1, 3) as $index) {
+            $this->found($founder, "Organizacja {$index}");
+        }
+
+        try {
+            $this->found($founder, 'Czwarta');
+            $this->fail('Oczekiwano limitu prób.');
+        } catch (ThrottleRequestsException $limited) {
+            $this->assertSame('organization.founding.too_many_attempts', $limited->getMessage());
+        }
+        $this->assertSame('founding_rate_limited', AuditEntry::on('audit')->where('action', 'access.denied')->latest('id')->first()->after_values['reason']);
+        $this->assertSame(3, Organization::query()->count());
+        $this->travel(61)->minutes();
+        $this->found($founder, 'Po godzinie');
+        $this->assertSame(4, Organization::query()->count());
+    }
+
+    public function test_a_limit_of_organizations_per_account_can_be_set_in_configuration(): void
+    {
+        config(['organization.founding.max_per_account' => 1]);
+        $founder = User::factory()->withTwoFactor()->create();
+        $this->found($founder);
+
+        $denied = $this->assertDenied(fn () => $this->found($founder, 'Druga'), 'founding_limit_reached');
+        $this->assertSame('access.founding_limit_reached', $denied->getMessage());
+        $this->assertSame(1, Organization::query()->count());
+    }
+
+    public function test_whole_organization_and_unit_need_separate_rights(): void
+    {
+        $founder = User::factory()->withTwoFactor()->create();
+        $organization = $this->found($founder);
+        $unit = $this->as($founder, fn () => $this->app->make(CreateOrganizationUnit::class)->handle($organization, 'Sekcja', 'Nowa sekcja'));
+        $this->travel(1)->second();
+        $localAdmin = $this->holder($organization, ['structure.manage', 'organization.view'], $unit);
+        $organizationManager = $this->holder($organization, ['organization.manage', 'organization.view'], $organization);
+
+        $this->as($localAdmin, fn () => $this->app->make(RenameOrganization::class)->handle($unit, 'Sekcja Północ', 'Nowa nazwa'));
+        $this->assertDenied(fn () => $this->as($localAdmin, fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Przejęta', 'Próba')), 'no_matching_assignment');
+        $this->as($organizationManager, fn () => $this->app->make(RenameOrganization::class)->handle($organization, 'Fundacja Niebieska', 'Zmiana statutu'));
+        $this->assertDenied(fn () => $this->as($organizationManager, fn () => $this->app->make(RenameOrganization::class)->handle($unit, 'Inna', 'Próba')), 'no_matching_assignment');
+        $this->assertSame(['Fundacja Niebieska', 'Sekcja Północ'], [$organization->fresh()->name, $unit->fresh()->name]);
+    }
+
+    public function test_moving_a_unit_needs_rights_over_the_unit_the_old_and_the_new_parent(): void
+    {
+        $founder = User::factory()->withTwoFactor()->create();
+        $organization = $this->found($founder);
+        [$north, $south, $team] = array_map(fn (string $name) => tap($this->as($founder, fn () => $this->app->make(CreateOrganizationUnit::class)->handle($organization, $name, 'Struktura')), fn () => $this->travel(1)->second()), ['Północ', 'Południe', 'Zespół']);
+        $this->as($founder, fn () => $this->app->make(MoveOrganization::class)->handle($team, $north, 'Zespół na północy'));
+        $this->travel(1)->second();
+        $northAdmin = $this->holder($organization, ['structure.manage'], $north);
+        $southAdmin = $this->holder($organization, ['structure.manage'], $south);
+        $both = $this->holder($organization, ['structure.manage'], $north);
+        $this->asSystem(fn () => $this->app->make(AssignRole::class)->handle($both, RoleAssignment::query()->where('user_id', $both->id)->sole()->role, $south, ScopeInheritance::UnitAndDescendants, null, 'Drugie miejsce'));
+        $this->travel(1)->second();
+
+        $this->assertDenied(fn () => $this->as($northAdmin, fn () => $this->app->make(MoveOrganization::class)->handle($team, $south, 'Do miejsca bez praw')), 'no_matching_assignment');
+        $this->assertDenied(fn () => $this->as($southAdmin, fn () => $this->app->make(MoveOrganization::class)->handle($team, $south, 'Z miejsca bez praw')), 'no_matching_assignment');
+        $this->as($both, fn () => $this->app->make(MoveOrganization::class)->handle($team, $south, 'Przeniesienie'));
+        $this->assertSame($south->id, OrganizationParent::query()->where('organization_id', $team->id)->whereNull('valid_to')->sole()->parent_id);
+    }
+
+    public function test_archiving_a_whole_organization_needs_confirmation_reason_and_mfa(): void
+    {
+        $founder = User::factory()->withTwoFactor()->create();
+        $organization = $this->found($founder);
+        $managerWithoutMfa = $this->holder($organization, ['organization.manage'], $organization, mfa: false);
+
+        $denied = $this->assertDenied(fn () => $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Likwidacja')), 'confirmation_missing');
+        $this->assertSame('access.confirmation_missing', $denied->getMessage());
+        $this->assertDenied(fn () => $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Likwidacja', 'fundacja zielona')), 'confirmation_missing');
+        $this->assertDenied(fn () => $this->as($managerWithoutMfa, fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Likwidacja', 'Fundacja Zielona')), 'mfa_required');
+        try {
+            $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, '  ', 'Fundacja Zielona'));
+            $this->fail('Oczekiwano wymogu powodu.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('reason', $e->errors());
+        }
+        $this->assertSame(OrganizationStatus::Active, $organization->fresh()->status);
+
+        $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($organization, 'Likwidacja', 'Fundacja Zielona'));
+        $this->assertSame(OrganizationStatus::Archived, $organization->fresh()->status);
+    }
+
+    public function test_archiving_a_unit_needs_rights_over_it_and_its_parent_and_keeps_history(): void
+    {
+        $founder = User::factory()->withTwoFactor()->create();
+        $organization = $this->found($founder);
+        $unit = $this->as($founder, fn () => $this->app->make(CreateOrganizationUnit::class)->handle($organization, 'Sekcja', 'Nowa sekcja'));
+        $this->travel(1)->second();
+        $localAdmin = $this->holder($organization, ['structure.manage', 'organization.manage'], $unit);
+        $beforeArchive = now()->toImmutable();
+        $this->travel(1)->second();
+
+        $this->assertDenied(fn () => $this->as($localAdmin, fn () => $this->app->make(ArchiveOrganization::class)->handle($unit, 'Likwidacja sekcji')), 'no_matching_assignment');
+        $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($unit, 'Likwidacja sekcji'));
+
+        $this->assertSame(OrganizationStatus::Archived, $unit->fresh()->status);
+        $this->assertSame($organization->id, OrganizationParent::query()->where('organization_id', $unit->id)->sole()->parent_id, 'Dawne położenie zostaje.');
+        $this->assertSame([$organization->id], $this->app->make(OrganizationHierarchy::class)->ancestorsAt($unit, $beforeArchive)->modelKeys());
+        $this->assertSame(1, RoleAssignment::query()->where('user_id', $localAdmin->id)->where('scope_organization_id', $unit->id)->count(), 'Przypisania zostają.');
+        $this->assertSame(1, AuditEntry::query()->where(['action' => 'organization.created', 'subject_id' => (string) $unit->id])->count(), 'Audyt zostaje.');
     }
 }

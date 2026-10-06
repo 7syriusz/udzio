@@ -735,7 +735,9 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 
 - **Warunki konta przed działaniem przypisania roli** (`PrivilegedAccessPolicy`, sprawdzane w `AccessDecider` dla każdej
   decyzji, listy jednostek i prawa do historii):
-  - każde uprawnienie wymaga potwierdzonego adresu e-mail konta (przyczyna odmowy `email_unverified`);
+  - każde uprawnienie wynikające z **przypisanej roli** (organizacji lub platformy) wymaga potwierdzonego adresu
+    e-mail konta (przyczyna odmowy `email_unverified`). Nie dotyczy to publicznych czynności uczestnika bez roli
+    (np. zapisu na wydarzenie) — ich zasady określi scenariusz (doprecyzowanie Z-040 pkt 4);
   - MFA wymaga rola, która ma je w swojej **polityce bezpieczeństwa** (`access_roles.requires_mfa`, część wersji roli,
     zmiana audytowana przed/po) **albo** zawiera uprawnienie uprzywilejowane. Nazwa roli nie ma znaczenia.
   - Uprawnienia uprzywilejowane (konfiguracja `organization.privileged_access.permissions`): `roles.manage`,
@@ -793,9 +795,64 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   „zapamiętaj mnie”; audyt `account.mfa_reset` (wykonujący, konto, powód, potwierdzenie tożsamości, liczba
   zakończonych sesji). **Do wdrożenia przy ekranie (E3.10/E3.11):** trasa resetu za `password.confirm`
   (ponowne potwierdzenie hasła wykonującego) i `mfa`.
-- **Brak konta awaryjnego i hasła uniwersalnego.** Procedury awaryjnej nie utworzono. Utrata MFA przez jedynego
-  administratora wymaga drugiego administratora platformy — zalecenie: co najmniej dwóch administratorów
-  platformy. Jeśli procedura awaryjna będzie potrzebna, musi być jawna, ograniczona czasowo, możliwa do
-  wyłączenia i audytowana (rodzaj audytu `access.privileged` jest przygotowany, Z-037) — decyzja do Jakuba.
-- **Otwarte (poza E3.8):** `CreateOrganization` nie ma jeszcze kontroli uprawnień — przy ekranie organizacji (E3.10)
-  tworzenie organizacji przejdzie przez uprawnienie platformy.
+- **Brak konta awaryjnego i hasła uniwersalnego.** Procedura awaryjna jest potrzebna (rozstrzygnięcie Z-040 pkt 1)
+  i powstaje jako osobny obowiązkowy podetap E3.8d — jawne polecenie konsolowe dla osoby z dostępem
+  administracyjnym do serwera, bez nadawania uprawnień.
+- **Tworzenie organizacji:** `CreateOrganization` nie ma jeszcze kontroli — wdrożenie w E3.10 (Z-040 pkt 3). Założenie
+  organizacji jest podstawową funkcją UDZIO dostępną użytkownikom, **nie** wymaga ani nie daje uprawnień platformy;
+  założyciel otrzymuje wyłącznie prawa w utworzonej organizacji.
+
+## Z-040 — Rozstrzygnięcia po E3.8 (Jakub, 2026-10-06)
+
+1. **Procedura awaryjna administratora platformy — obowiązkowa (podetap E3.8d, przed udostępnieniem systemu poza
+   środowiskiem deweloperskim).** Bez uniwersalnego hasła, ukrytego konta, pomijania MFA i bez automatycznego resetu
+   na podstawie samego dostępu do e-maila. Jawne polecenie konsolowe (tylko dla osoby z dostępem administracyjnym
+   do serwera), które: wskazuje konkretne konto; wymaga powodu i opisu potwierdzenia tożsamości; wymaga jawnego
+   potwierdzenia wykonania; usuwa MFA, kody odzyskiwania i wszystkie sesje; nie nadaje uprawnień i nie tworzy
+   administratora; zapisuje pełny audyt; powiadamia właściciela konta; po resecie uprawnienia platformy działają
+   dopiero po ponownym ustawieniu MFA (Z-038). Niezależnie od tego przy uruchomieniu platformy powstaje co najmniej
+   dwóch administratorów platformy.
+2. **Reset MFA przez ekran — wymagania przed wykonaniem:** osoba wykonująca jest zalogowana, ma uprawnienie
+   `platform.mfa.reset`, ma aktywne MFA, **ponownie potwierdza hasło** (`password.confirm`) lub równoważnie się
+   uwierzytelnia, podaje sposób potwierdzenia tożsamości właściciela konta i powód. Sama aktywna sesja nie wystarcza.
+   Do czasu ekranu reset MFA nie ma żadnej trasy HTTP — pilnuje tego `ArchitectureTest`
+   (`test_privileged_operations_have_no_http_entry_yet`: `ResetAccountMfa`, `GrantPlatformRole`,
+   `InstallFirstAdministrator`, `CreateOrganization` nie występują w `app/Http` ani `routes`).
+3. **Tworzenie organizacji:** kontrola w E3.10 przez centralny mechanizm decyzji. Do tego czasu żaden kontroler,
+   API ani formularz nie tworzy organizacji (ten sam test). Założyciel dostaje tylko prawa w swojej organizacji, nigdy
+   uprawnienia platformy.
+4. **Potwierdzony e-mail** jest wymagany do: uprawnień z przypisanej roli, zarządzania organizacją i uprawnień
+   platformy. Nie jest automatycznie wymagany do publicznych czynności uczestnika (zasady zapisu bez konta —
+   scenariusz).
+5. **Hasła wygodne dla użytkownika** (stan obecny i plan — poniżej; wdrożenie w podetapie E3.8e po akceptacji planu):
+   bez reguł składu (wielka/mała litera, cyfra, znak specjalny); spacje i polskie znaki dozwolone; długie frazy;
+   bez okresowej zmiany; wklejanie z menedżera haseł dozwolone; blokada haseł popularnych i ujawnionych w wyciekach;
+   limit prób logowania; nieodwracalny skrót do haseł, preferencyjnie Argon2id z indywidualną solą; nigdy
+   odwracalne szyfrowanie. Minimum 15 znaków dla konta chronionego tylko hasłem; dla kont z MFA można dopuścić
+   krótsze, ale bez reguł składu.
+   - **Spacje są częścią hasła:** nie są usuwane z początku, końca ani środka (Laravel nie przycina pól `password`,
+     `password_confirmation`, `current_password`). Formularz może ostrzec o spacji na początku lub końcu, ale nie
+     zmienia hasła. Testy: `PasswordWithSpacesTest` (założenie konta, potwierdzenie, zmiana, ustawienie/reset linkiem,
+     logowanie tylko dokładnym hasłem).
+   - **Stan na 2026-10-06:** minimum 12 znaków, maksimum 255, brak reguł składu; brak kontroli haseł popularnych
+     i ujawnionych; skrót bcrypt (koszt 12, sól w skrócie, `rehash_on_login` włączone); logowanie 5 prób/min na
+     adres e-mail + IP, kod MFA 5 prób/min; wklejanie nie jest blokowane (formularze bez JavaScriptu).
+   - **Ryzyko bcrypt:** bcrypt uwzględnia tylko pierwsze 72 bajty hasła (polska litera = 2 bajty); dłuższa fraza
+     jest po cichu obcinana. Argon2id nie ma tego ograniczenia.
+   - **Plan E3.8e:** (a) `Password::min(15)` dla wszystkich kont (wariant prostszy niż osobne minimum dla kont z MFA
+     — do decyzji), maksimum np. 256 znaków; (b) `uncompromised()` — sprawdzenie w bazie Have I Been Pwned metodą
+     k-anonimowości (wysyłany jest tylko 5-znakowy prefiks skrótu SHA-1) oraz lokalna lista haseł popularnych;
+     zachowanie przy niedostępności usługi do decyzji (domyślnie: nie blokować zakładania konta); (c) Argon2id
+     (`HASH_DRIVER=argon2id`) z planem zgodności: `hashing.argon.verify=false` na czas przejścia, aby istniejące skróty
+     bcrypt nadal działały, przeliczenie na Argon2id przy najbliższym udanym logowaniu (`rehash_on_login`), testy
+     logowania kontem z bcrypt, przeliczenia i nowego konta; raport liczby kont jeszcze z bcrypt; po okresie
+     przejściowym konta bez logowania dostają reset hasła; (d) obecne konta z hasłem krótszym niż 15 znaków nie są
+     blokowane — nowe minimum obowiązuje przy zakładaniu konta i zmianie hasła.
+6. **Logowanie bez hasła (późniejsze rozszerzenie):** link logujący (Magic Link) dla uczestników i klucze dostępu
+   (passkeys: odcisk palca, rozpoznanie twarzy, zabezpieczenie urządzenia; Fortify ma wbudowaną obsługę). Nie jest
+   warunkiem zamknięcia E3.8. Zasada architektury: hasło nie jest jedyną metodą logowania — warunki dostępu
+   (potwierdzony e-mail, MFA dla ról uprzywilejowanych, Z-038) dotyczą konta, nie metody logowania. Link logujący
+   nie może zastąpić MFA dla ról uprzywilejowanych ani resetować MFA.
+7. **CI:** przed oznaczeniem E3 jako zakończonego wynik CI na GitHubie jest sprawdzany (publiczne API GitHub Actions
+   — działa bez `gh`) albo potwierdzany ręcznie przez Jakuba. Stan 2026-10-06: E3.8a i E3.8b — sukces na gałęziach
+   i na `main` (`3bd74b9`).

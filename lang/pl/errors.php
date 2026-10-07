@@ -9,6 +9,7 @@ return [
     'title' => 'Błąd :status',
     'code' => 'Kod błędu: :status',
     'home' => 'Przejdź do strony głównej',
+    'back' => 'Wróć do poprzedniej strony',
 
     'http' => [
         '401' => 'Wymagane zalogowanie.',

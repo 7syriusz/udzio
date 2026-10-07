@@ -10,6 +10,7 @@ return [
         'title' => 'Organizacje',
         'intro' => 'Organizacje i jednostki, które możesz przeglądać.',
         'empty' => 'Nie masz jeszcze dostępu do żadnej organizacji.',
+        'empty_until_mfa' => 'Organizacje pojawią się tutaj po włączeniu uwierzytelniania dwuskładnikowego.',
         'found' => 'Załóż organizację',
         'found_title' => 'Nowa organizacja',
         'found_intro' => 'Zostaniesz administratorem tej organizacji. Nie daje to uprawnień do innych organizacji ani do całej platformy.',
@@ -43,6 +44,8 @@ return [
         'archive_submit' => 'Zarchiwizuj',
         'cancel' => 'Anuluj',
         'open' => 'otwórz',
+        'manage' => 'Zarządzaj',
+        'manage_unit' => 'Zarządzaj: :name',
     ],
 
     'founding' => [

@@ -56,7 +56,7 @@ return [
         'code' => 'Kod',
         'change_password' => 'Zmiana hasła',
         'current_password' => 'Obecne hasło',
-        'new_password' => 'Nowe hasło (co najmniej 12 znaków)',
+        'new_password' => 'Nowe hasło (co najmniej :min znaków — może być zdanie ze spacjami)',
         'new_password_confirmation' => 'Powtórz nowe hasło',
         'change_password_submit' => 'Zmień hasło',
         'other_devices' => 'Pozostałe urządzenia',

@@ -3,7 +3,7 @@
 @section('title', __('organization.screens.title'))
 
 @section('content')
-@if (session('founded_needs_mfa'))
+@if (session('founded_needs_mfa') && $awaitingMfa->isEmpty())
     <div class="mb-6 rounded border border-amber-300 bg-amber-50 p-4" role="alert">
         <p class="mb-2">{{ __('organization.screens.founded_needs_mfa') }}</p>
         <a href="{{ route('account.security') }}" class="font-semibold text-blue-700 underline">{{ __('organization.screens.go_to_security') }}</a>
@@ -31,7 +31,7 @@
             <a href="{{ route('organizations.show', $organization->public_id) }}" class="text-blue-700 underline">{{ __('organization.screens.open') }}</a>
         </li>
     @empty
-        <li class="p-3">{{ __('organization.screens.empty') }}</li>
+        <li class="p-3">{{ $awaitingMfa->isEmpty() ? __('organization.screens.empty') : __('organization.screens.empty_until_mfa') }}</li>
     @endforelse
 </ul>
 

@@ -75,9 +75,11 @@ class OrganizationScreensTest extends TestCase
         $this->assertSame(1, Organization::query()->count(), 'Ponowne wysłanie formularza nie zakłada drugiej organizacji.');
         $this->get('/organizations')->assertOk()
             ->assertSee('Organizacja „Fundacja Zielona” została założona.')
-            ->assertSee('Aby zarządzać organizacją, włącz uwierzytelnianie dwuskładnikowe.')
             ->assertSee('Organizacje czekające na włączenie uwierzytelniania dwuskładnikowego')
+            ->assertSee('Organizacje pojawią się tutaj po włączeniu uwierzytelniania dwuskładnikowego.')
+            ->assertDontSee('Nie masz jeszcze dostępu do żadnej organizacji.')
             ->assertSee(route('account.security'));
+        $this->get(route('account.security'))->assertOk()->assertSee('Uwierzytelnianie dwuskładnikowe');
         $this->get('/organizations/'.Organization::query()->sole()->public_id)->assertNotFound();
     }
 
@@ -92,7 +94,8 @@ class OrganizationScreensTest extends TestCase
             ->assertDontSee('Organizacje czekające');
         $this->get('/organizations/'.$organization->public_id)->assertOk()
             ->assertSeeInOrder(['Fundacja Zielona', 'Oddział Północ', 'Sekcja A'])
-            ->assertSee('Dodaj jednostkę podrzędną')->assertSee('Zmień nazwę')->assertSee('Archiwizuj');
+            ->assertSee('Dodaj jednostkę podrzędną')->assertSee('Zmień nazwę')->assertSee('Archiwizuj')
+            ->assertSee('Zarządzaj')->assertSee('aria-label="Zarządzaj: Oddział Północ"', false);
         $this->get('/organizations/'.$north->public_id)->assertOk()->assertSee('Położenie')->assertSee('Przenieś do');
     }
 
@@ -169,8 +172,9 @@ class OrganizationScreensTest extends TestCase
 
         $this->actingAs($viewer)->get('/organizations/'.$organization->public_id)->assertOk()->assertSee('Północ')
             ->assertDontSee('Dodaj jednostkę podrzędną')->assertDontSee('Zmień nazwę')->assertDontSee('Archiwizuj');
-        $this->post('/organizations/'.$organization->public_id.'/units', ['name' => 'Wtyczka', 'reason' => 'Próba'])
-            ->assertForbidden()->assertSee('Nie masz uprawnień do wykonania tej czynności.');
+        $this->from('/organizations/'.$organization->public_id)->post('/organizations/'.$organization->public_id.'/units', ['name' => 'Wtyczka', 'reason' => 'Próba'])
+            ->assertForbidden()->assertSee('Nie masz uprawnień do wykonania tej czynności.')
+            ->assertSee('Wróć do poprzedniej strony')->assertSee(route('organizations.show', $organization->public_id), false);
         $this->put('/organizations/'.$unit->public_id.'/name', ['name' => 'Przejęta', 'reason' => 'Próba'])->assertForbidden();
         $this->post('/organizations/'.$organization->public_id.'/archive', ['reason' => 'Próba', 'confirmation' => 'Fundacja Zielona'])->assertForbidden();
         $this->assertSame(2, Organization::query()->count());
@@ -197,5 +201,11 @@ class OrganizationScreensTest extends TestCase
 
         $this->actingAs($founder)->post('/organizations', ['name' => '', 'request_key' => (string) Str::ulid()])->assertSessionHasErrors(['name' => 'Pole nazwa jest wymagane.']);
         $this->post('/organizations/'.$organization->public_id.'/units', ['name' => 'Sekcja', 'reason' => ''])->assertSessionHasErrors(['reason' => 'Pole powód jest wymagane.']);
+    }
+
+    public function test_password_hints_show_the_current_minimum(): void
+    {
+        $this->get('/register')->assertSee('Hasło (co najmniej 15 znaków — może być zdanie ze spacjami)');
+        $this->actingAs(User::factory()->create())->get(route('account.security'))->assertSee('Nowe hasło (co najmniej 15 znaków — może być zdanie ze spacjami)')->assertDontSee('12 znaków');
     }
 }

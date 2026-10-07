@@ -39,7 +39,7 @@
     <form method="POST" action="{{ route('user-password.update') }}">
         @csrf
         @method('PUT')
-        @foreach ([['current_password', __('account.security.current_password'), 'current-password'], ['password', __('account.security.new_password'), 'new-password'], ['password_confirmation', __('account.security.new_password_confirmation'), 'new-password']] as [$field, $label, $autocomplete])
+        @foreach ([['current_password', __('account.security.current_password'), 'current-password'], ['password', __('account.security.new_password', ['min' => config('identity.passwords.min_length')]), 'new-password'], ['password_confirmation', __('account.security.new_password_confirmation'), 'new-password']] as [$field, $label, $autocomplete])
             <div class="mb-3">
                 <label for="{{ $field }}" class="block text-sm">{{ $label }}</label>
                 <input id="{{ $field }}" name="{{ $field }}" type="password" autocomplete="{{ $autocomplete }}" required class="w-full rounded border px-3 py-2">

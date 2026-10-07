@@ -13,8 +13,8 @@ return [
     'fields' => [
         'email' => 'E-mail',
         'password' => 'Hasło',
-        'new_password' => 'Nowe hasło (co najmniej 12 znaków)',
-        'password_with_rule' => 'Hasło (co najmniej 12 znaków)',
+        'new_password' => 'Nowe hasło (co najmniej :min znaków — może być zdanie ze spacjami)',
+        'password_with_rule' => 'Hasło (co najmniej :min znaków — może być zdanie ze spacjami)',
         'password_confirmation' => 'Powtórz hasło',
         'given_name' => 'Imię',
         'family_name' => 'Nazwisko',

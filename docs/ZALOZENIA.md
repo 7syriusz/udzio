@@ -1054,4 +1054,14 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - **Poza zakresem E3.10b:** odłączenie jednostki do nowej, samodzielnej organizacji (operacja domenowa istnieje,
   ekranu brak), widok organizacji zarchiwizowanych (historia — z `structure.history.view`, przy ekranach historii),
   członkowie i role — E3.11.
-- **Weryfikacja:** `OrganizationScreensTest` (9 przypadków HTTP).
+- **Weryfikacja:** `OrganizationScreensTest` (10 przypadków HTTP).
+- **Kontrola wizualna (E3.10b1, 2026-10-07):** Chromium (Playwright z pamięci podręcznej `npx`, poza zależnościami
+  projektu), 1280 px i 390 px, tymczasowa baza `udzio_visual` usunięta po kontroli (bez seederów i danych w repozytorium);
+  długie nazwy, 4 poziomy, kilka jednostek na poziomie; pomiar przepełnienia poziomego na każdym ekranie; przejście
+  klawiaturą (Tab do „Zarządzaj”, Enter, wpisanie, wysłanie). Poprawione, czego nie wykryły testy HTTP: lista
+  „Przenieś do” wychodziła 300 px poza ekran telefonu; etykieta panelu powtarzała pełną nazwę jednostki (teraz
+  „Zarządzaj”, pełna nazwa w `aria-label`); zbyt duże wcięcia głębokich poziomów na telefonie; czerwone
+  „Archiwizuj” przy każdej jednostce (przeniesione do panelu); dwie zdublowane ramki o MFA i mylący tekst „Nie masz
+  jeszcze dostępu…” po założeniu; brak drogi powrotu na stronie błędu (dodane „Wróć do poprzedniej strony”);
+  nieaktualne podpowiedzi „co najmniej 12 znaków” przy haśle (teraz z `identity.passwords.min_length`).
+  Uwaga dla zmian widoków: nowe klasy Tailwind działają dopiero po `npm run build` (lub przy `npm run dev`).

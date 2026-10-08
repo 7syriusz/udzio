@@ -17,7 +17,6 @@ class PersonFactory extends Factory
         return [
             'given_name' => fake()->firstName(),
             'family_name' => fake()->lastName(),
-            'birth_date' => fake()->optional()->date(max: '-1 year'),
         ];
     }
 }

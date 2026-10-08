@@ -1,6 +1,6 @@
 # Architektura i konwencje
 
-Specyfikacja nadrzędna: [E1E2E3A5Skalik](specifications/E1E2E3A5Skalik.md). Założenia: [ZALOZENIA.md](ZALOZENIA.md).
+Specyfikacja nadrzędna: [UDZIO Core A5](specifications/UDZIO-Core-A5.md). Założenia: [ZALOZENIA.md](ZALOZENIA.md).
 
 ## 1. Jedna aplikacja, moduły domenowe
 
@@ -295,3 +295,8 @@ nazwę pola formularza w `validation.attributes`. W wyjątkach HTTP podawaj kluc
 (`App::setLocale` tylko w `SetLocale`); wiadomości do konta idą w jego języku (`preferredLocale`). Kody techniczne
 i dane użytkowników zostają bez tłumaczenia. Szczegóły: Z-036.
 
+
+Daty pokazuj i czytaj tylko przez `DateDisplay` (`date`, `dateTime`, `hint`, `parseDate`): zapis w UTC, wyświetlanie
+w `Europe/Warsaw` i kolejności języka (po polsku `dd.mm.rrrr`). Nie używaj natywnych pól daty przeglądarki ani
+`->format()` w widokach — pilnuje tego `ArchitectureTest`. Po zmianie klas Tailwind w widokach uruchom `npm run build`.
+Szczegóły: Z-045.

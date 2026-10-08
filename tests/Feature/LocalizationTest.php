@@ -4,13 +4,16 @@ namespace Tests\Feature;
 
 use App\Domain\Identity\Actions\RegisterPerson;
 use App\Domain\Platform\Exceptions\AccessDenied;
+use App\Domain\Platform\Localization\DateDisplay;
 use App\Domain\Platform\Localization\LocaleResolver;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -197,5 +200,38 @@ class LocalizationTest extends TestCase
     private function assertNoRawKeys(string $html, string $url): void
     {
         $this->assertDoesNotMatchRegularExpression('/\b(ui|account|auth|errors|access|identity|organization|permissions|validation|notifications)\.[a-z_]+(\.[a-z_]+)*\b/', strip_tags($html), "Nieprzetłumaczony klucz na {$url}");
+    }
+
+    public function test_dates_are_shown_day_month_year_in_warsaw_time(): void
+    {
+        $dates = $this->app->make(DateDisplay::class);
+        $lateEvening = CarbonImmutable::parse('2026-10-07 22:30:00', 'UTC');
+
+        $this->assertSame('Europe/Warsaw', config('localization.display_timezone'));
+        $this->assertSame('UTC', config('app.timezone'), 'Zapis w bazie pozostaje w UTC.');
+        $this->assertSame('08.10.2026', $dates->date($lateEvening), 'Godzina 22:30 UTC to już następny dzień w Polsce.');
+        $this->assertSame('08.10.2026, 00:30', $dates->dateTime($lateEvening));
+        $this->assertSame('dd.mm.rrrr', $dates->hint());
+        $this->assertSame('2026-10-08', $dates->parseDate(' 08.10.2026 ')?->format('Y-m-d'));
+        foreach (['10/08/2026', '2026-10-08', '31.02.2026', '8.10.26'] as $notPolish) {
+            $this->assertNull($dates->parseDate($notPolish), $notPolish);
+        }
+        $this->assertSame('', $dates->date(null));
+    }
+
+    public function test_every_password_screen_states_the_current_minimum_and_never_twelve(): void
+    {
+        $this->assertSame(15, config('identity.passwords.min_length'));
+        $account = User::factory()->create(['email' => 'anna@example.test']);
+        $token = Password::broker()->createToken($account);
+        $hint = 'co najmniej 15 znaków — może być zdanie ze spacjami';
+
+        $this->get('/register')->assertOk()->assertSee($hint)->assertDontSee('12 znaków');
+        $this->get("/reset-password/{$token}?email=anna@example.test")->assertOk()->assertSee($hint)->assertDontSee('12 znaków');
+        $this->get('/login')->assertOk()->assertDontSee('12 znaków');
+        $this->post('/register', ['given_name' => 'A', 'family_name' => 'B', 'email' => 'b@example.test', 'password' => 'krótkie hasło', 'password_confirmation' => 'krótkie hasło'])
+            ->assertSessionHasErrors(['password' => 'Hasło musi mieć co najmniej 15 znaków. Możesz użyć łatwego do zapamiętania zdania ze spacjami.']);
+        $this->actingAs($account)->get(route('account.security'))->assertOk()->assertSee($hint)->assertDontSee('12 znaków');
+        $this->get('/user/confirm-password')->assertOk()->assertDontSee('12 znaków');
     }
 }

@@ -177,7 +177,6 @@ return [
     ],
 
     'attributes' => [
-        'birth_date' => 'data urodzenia',
         'channel' => 'kanał',
         'code' => 'kod',
         'contact' => 'kontakt',

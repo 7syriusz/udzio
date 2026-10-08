@@ -1,0 +1,5 @@
+.env*
+runtime
+android
+**/__pycache__
+.git

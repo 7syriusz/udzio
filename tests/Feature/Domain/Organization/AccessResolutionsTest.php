@@ -262,15 +262,15 @@ class AccessResolutionsTest extends TestCase
 
     public function test_representation_gives_only_the_data_the_action_needs(): void
     {
-        $child = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Zosia', 'family_name' => 'Nowak', 'birth_date' => '2015-03-01']);
+        $child = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Zosia', 'family_name' => 'Nowak']);
         $this->app->make(AdmitMember::class)->handle($child, $this->office, 'member', 'Przyjęcie');
         $parent = User::factory()->withTwoFactor()->create(['person_id' => $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Maria', 'family_name' => 'Nowak'])->id]);
         $representation = $this->app->make(GrantRepresentation::class)->handle($parent->person, $child, [RepresentationScope::ProfileView], RepresentationMethod::Document, 'akt urodzenia', now()->subSecond(), 'Opiekun');
         $acting = $this->app->make(ActOnBehalf::class);
 
         $data = $acting->visibleData($parent, $child, RepresentationScope::ProfileView);
-        $this->assertSame(['public_id', 'given_name', 'family_name', 'birth_date'], array_keys($data), 'Tylko pola potrzebne do czynności.');
-        $this->assertSame(['Zosia', '2015-03-01'], [$data['given_name'], $data['birth_date']->format('Y-m-d')]);
+        $this->assertSame(['public_id', 'given_name', 'family_name'], array_keys($data), 'Tylko pola potrzebne do czynności.');
+        $this->assertSame('Zosia', $data['given_name']);
         $this->assertSame(404, $this->denied(fn () => $acting->visibleData($parent, $child, RepresentationScope::ContactsView))->status(), 'Inna czynność — brak danych.');
         $this->assertSame([], $this->visibility()->memberships($parent)->pluck('id')->all(), 'Bez dostępu do danych organizacji.');
         $this->denied(fn () => $this->visibility()->findPerson($parent, $this->anna->public_id));

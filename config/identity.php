@@ -49,8 +49,8 @@ return [
         // needs. Fields of class SPECIAL CATEGORY or SECRET are never shown through a representation, even
         // when listed here. Later stages add their scopes (registrations E5, payments E8, consents E9).
         'visible_fields' => [
-            'profile.view' => ['public_id', 'given_name', 'family_name', 'birth_date'],
-            'profile.update' => ['public_id', 'given_name', 'family_name', 'birth_date'],
+            'profile.view' => ['public_id', 'given_name', 'family_name'],
+            'profile.update' => ['public_id', 'given_name', 'family_name'],
             'contacts.view' => ['public_id', 'given_name', 'family_name'],
             'contacts.manage' => ['public_id', 'given_name', 'family_name'],
         ],

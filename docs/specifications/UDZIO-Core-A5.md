@@ -1,6 +1,6 @@
-# E1E2E3A5Skalik — UDZIO Core A5: globalny model fundamentu
+# UDZIO Core A5 — globalny model fundamentu
 
-> Źródło: dokument przekazany przez Krzysztofa 2026-09-26 (treść Jakuba). Przeniesiony do Markdown bez zmian merytorycznych; tabele odtworzone z wersji tekstowej. Dokument nadrzędny dla całego projektu.
+> Źródło: dokument przekazany przez Krzysztofa 2026-09-26 (treść Jakuba). Przeniesiony do Markdown bez zmian merytorycznych; tabele odtworzone z wersji tekstowej. Dokument nadrzędny dla całego projektu. 2026-10-08 (decyzja Jakuba): zmieniono nazwę pliku i usunięto odwołanie do dawnego dokumentu — treść modelu bez zmian.
 
 Status: A5 określa abstrakcyjny, globalny fundament UDZIO. Dokument jest nadrzędnym modelem pojęć, relacji i granic odpowiedzialności dla dalszych specyfikacji.
 
@@ -8,7 +8,7 @@ Status: A5 określa abstrakcyjny, globalny fundament UDZIO. Dokument jest nadrz�
 
 A5 porządkuje globalny fundament UDZIO tak, aby różne zastosowania korzystały z tych samych pojęć Core, bez tworzenia osobnych modeli dla nazw branżowych.
 
-A5 jest wersją modelu, a nie etapem E5. Oznaczenie „A5” opisuje kolejną wersję dokumentu Skalik. Nie należy utożsamiać go z etapem E5, w którym będzie projektowana i zamrażana uniwersalna mechanika Core 2.0.
+A5 jest wersją modelu UDZIO Core, a nie etapem E5. Nie należy utożsamiać go z etapem E5, w którym będzie projektowana i zamrażana uniwersalna mechanika Core 2.0.
 
 Dokument opisuje pojęcia, relacje i granice odpowiedzialności. Nie jest schematem bazy danych, projektem endpointów, listą ekranów ani gotową konfiguracją scenariusza.
 

@@ -77,7 +77,7 @@ class E2OperationsAuthorizationTest extends TestCase
             $this->establisher = $this->app->make(CreateAccessRole::class)->handle($this->company, 'Opieka', ['representations.establish'], 'Rola');
         });
         // Maria is a member of the office, Jan of a foreign organization, Ewa of no organization.
-        $this->maria = $this->personWithEmail('rodzina@example.test', 'Maria', '2014-05-01');
+        $this->maria = $this->personWithEmail('rodzina@example.test', 'Maria');
         $this->jan = $this->personWithEmail('rodzina@example.test', 'Jan');
         $this->ewa = $this->personWithEmail('ewa@example.test', 'Ewa');
         $this->app->make(AdmitMember::class)->handle($this->maria, $this->office, 'member', 'Przyjęcie');
@@ -90,9 +90,9 @@ class E2OperationsAuthorizationTest extends TestCase
         return $this->app->make(SystemAuthority::class)->run(new AnyScopeTestPurpose, $operation);
     }
 
-    private function personWithEmail(string $email, string $given, ?string $birthDate = null): Person
+    private function personWithEmail(string $email, string $given): Person
     {
-        $person = $this->app->make(RegisterPerson::class)->handle(['given_name' => $given, 'family_name' => 'Nowak', 'birth_date' => $birthDate]);
+        $person = $this->app->make(RegisterPerson::class)->handle(['given_name' => $given, 'family_name' => 'Nowak']);
         $contact = $this->app->make(AddContact::class)->handle($person, ContactChannel::Email, $email);
         $this->app->make(AuditReason::class)->because('verified in test', fn () => $contact->update(['verified_at' => now()]));
 
@@ -142,7 +142,7 @@ class E2OperationsAuthorizationTest extends TestCase
         config(['organization.representation_policies.guardian_of_minor' => [
             'method' => 'document',
             'document' => 'dokument potwierdzający opiekę',
-            'represented' => ['functions' => ['member'], 'max_age' => 17],
+            'represented' => ['functions' => ['member']],
             'scopes' => ['profile.view', 'registrations.manage', 'consents.manage'],
             'max_days' => 365,
             'organizations' => null,
@@ -303,12 +303,8 @@ class E2OperationsAuthorizationTest extends TestCase
             },
             'bez sprawdzonego dokumentu' => fn () => $this->establishAs($operator, $this->maria, document: '  '),
             'okres dłuższy niż pozwala polityka' => fn () => $this->establishAs($operator, $this->maria, until: now()->addDays(400)),
-            'osoba pełnoletnia' => function () use ($operator) {
-                $this->app->make(AdmitMember::class)->handle($this->ewa, $this->office, 'member', 'Przyjęcie');
-                $this->establishAs($operator, $this->ewa, representative: $this->jan);
-            },
             'funkcja spoza polityki' => function () use ($operator) {
-                $this->guardianPolicy(['represented' => ['functions' => ['trainer'], 'max_age' => null]]);
+                $this->guardianPolicy(['represented' => ['functions' => ['trainer']]]);
                 $this->establishAs($operator, $this->maria);
             },
         ];
@@ -325,7 +321,7 @@ class E2OperationsAuthorizationTest extends TestCase
 
     public function test_representation_outside_scope_or_without_permission_is_not_found(): void
     {
-        $this->guardianPolicy(['represented' => ['functions' => null, 'max_age' => null]]);
+        $this->guardianPolicy(['represented' => ['functions' => null]]);
         $operator = $this->operator($this->establisher, $this->company);
         $resolverOnly = $this->operator($this->resolver, $this->company);
 

@@ -1,0 +1,41 @@
+name: udziosms-lab
+services:
+  server:
+    build: .
+    restart: unless-stopped
+    environment:
+      LAB_OPERATOR_HASH: ${LAB_OPERATOR_HASH:?Run python3 server/app.py --init first}
+      LAB_DB: /lab/runtime/lab.sqlite3
+    volumes:
+      - lab_data:/lab/runtime
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - lab
+  https:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      LAB_DOMAIN: ${LAB_DOMAIN:?Set a real DNS name pointing at the test server}
+    ports:
+      - "${LAB_HTTPS_PORT:-443}:443"
+      - "${LAB_HTTP_PORT:-80}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+    networks:
+      - lab
+volumes:
+  lab_data:
+  caddy_data:
+  caddy_config:
+networks:
+  lab:

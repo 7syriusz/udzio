@@ -28,7 +28,7 @@ class AccountScreensTest extends TestCase
 
     private function person(string $given = 'Anna'): Person
     {
-        return $this->app->make(RegisterPerson::class)->handle(['given_name' => $given, 'family_name' => 'Nowak', 'birth_date' => '1990-05-01']);
+        return $this->app->make(RegisterPerson::class)->handle(['given_name' => $given, 'family_name' => 'Nowak']);
     }
 
     private function holder(?Person $person = null): User
@@ -71,7 +71,7 @@ class AccountScreensTest extends TestCase
         $this->actingAs($this->holder($person));
 
         $this->put('/account', ['given_name' => '', 'family_name' => 'Nowak'])->assertSessionHasErrors('given_name');
-        $this->put('/account', ['given_name' => 'Anna', 'family_name' => 'Kowalska', 'birth_date' => '1990-05-01'])->assertRedirect('/account');
+        $this->put('/account', ['given_name' => 'Anna', 'family_name' => 'Kowalska'])->assertRedirect('/account');
 
         $this->assertSame('Kowalska', $person->fresh()->family_name);
         $this->assertSame('account holder updated own data', AuditEntry::query()->where('action', 'person.updated')->sole()->reason);

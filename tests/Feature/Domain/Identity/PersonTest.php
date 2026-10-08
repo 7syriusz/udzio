@@ -21,7 +21,7 @@ class PersonTest extends TestCase
 
     private function register(array $data = []): Person
     {
-        return $this->app->make(RegisterPerson::class)->handle([...['given_name' => 'Anna', 'family_name' => 'Nowak', 'birth_date' => '2015-04-02'], ...$data]);
+        return $this->app->make(RegisterPerson::class)->handle([...['given_name' => 'Anna', 'family_name' => 'Nowak'], ...$data]);
     }
 
     public function test_person_exists_without_an_account_and_has_a_public_identifier(): void
@@ -30,7 +30,7 @@ class PersonTest extends TestCase
 
         $this->assertTrue(Str::isUlid($person->public_id));
         $this->assertSame('public_id', $person->getRouteKeyName());
-        $this->assertSame('2015-04-02', $person->fresh()->birth_date->format('Y-m-d'));
+        $this->assertArrayNotHasKey('birth_date', $person->fresh()->getAttributes(), 'PERSON nie ma globalnej daty urodzenia (Z-019).');
         $this->assertSame(0, User::query()->count());
     }
 
@@ -94,8 +94,6 @@ class PersonTest extends TestCase
         return [
             'brak imienia' => [['given_name' => ''], 'given_name'],
             'same spacje' => [['family_name' => '   '], 'family_name'],
-            'data z przyszłości' => [['birth_date' => now()->addDay()->format('Y-m-d')], 'birth_date'],
-            'zły format daty' => [['birth_date' => '02.04.2015'], 'birth_date'],
         ];
     }
 

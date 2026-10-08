@@ -93,6 +93,26 @@ final class DataVisibility
         return $query;
     }
 
+    /**
+     * Archived units the account may look back at (E3.10e): `structure.history.view` held today, over units that
+     * belonged to its scope when they were archived (Z-037). A role held in the past gives nothing; without the
+     * right today the read is refused (403, audited).
+     *
+     * @return Builder<Organization>
+     */
+    public function archivedOrganizations(User $account): Builder
+    {
+        return Organization::query()->whereKey($this->historyUnits($account, Permission::StructureHistoryView, 'organization'))
+            ->whereNotNull('archived_at');
+    }
+
+    /** One archived unit for its history, or 404 (audited) when it is outside what the account may look back at. */
+    public function findArchivedOrganization(User $account, string $publicId): Organization
+    {
+        return $this->archivedOrganizations($account)->where('public_id', $publicId)->first()
+            ?? $this->notFound($account, 'organization', $publicId, Permission::StructureHistoryView->value);
+    }
+
     /** @return Builder<Person> */
     public function people(User $account, ?DateTimeInterface $at = null): Builder
     {

@@ -1111,3 +1111,21 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   (`TRUSTED_PROXIES`, domyślnie pusto — nikt). Podgląd ustawia `127.0.0.1`, więc linki, style, przekierowania i podpisane
   adresy (potwierdzenie e-maila) używają adresu HTTPS tunelu, a ciasteczka sesji są oznaczone `secure`.
   Testy: `TrustedProxiesTest`. Na serwerze produkcyjnym wartość ustawia się dla rzeczywistego proxy (E12).
+
+## Z-047 — Archiwizacja poddrzewa i dostęp do jednostek zarchiwizowanych (E3.10e, 2026-10-09)
+
+- **Przyczyna:** podczas przeglądu Jakuba po archiwizacji „Koło Wołów” jednostka podrzędna WOK zniknęła z drzewa, ale
+  pozostała aktywna pod zarchiwizowanym rodzicem — archiwizacja dotyczyła tylko wskazanej jednostki (także przy
+  całej organizacji, wbrew treści ostrzeżenia).
+- **Założenie (do potwierdzenia przez Jakuba):** archiwizacja jednostki lub całej organizacji obejmuje wszystkie jej
+  aktywne jednostki podrzędne — w tej samej chwili, z tym samym powodem i osobnym wpisem audytu dla każdej. Aktywna
+  jednostka nigdy nie zostaje pod zarchiwizowaną. Nic nie jest usuwane: historia, audyt, przypisania ról i położenie
+  każdej jednostki w chwili archiwizacji zostają. Uprawnienia jak w Z-043 (sprawdzane dla archiwizowanej jednostki
+  i jej rodzica; jednostki podrzędne są w ich zakresie). Alternatywa do decyzji: blokada archiwizacji, dopóki
+  jednostka ma aktywne jednostki podrzędne (najpierw przenieść lub zarchiwizować je osobno).
+- **Dostęp do zarchiwizowanych jednostek** (`DataVisibility::archivedOrganizations`, `findArchivedOrganization`) —
+  zgodnie z Z-034a/Z-037: tylko z `structure.history.view` posiadanym **dziś**, dla jednostek, które w chwili
+  archiwizacji należały do zakresu; dawna rola nie daje dostępu (403 z audytem `history_not_permitted`); jednostka
+  spoza zakresu — 404. Ekran — E3.10f.
+- **Dane lokalne:** w bazie deweloperskiej WOK pozostał aktywny pod zarchiwizowanym „Koło Wołów” (sprzed zmiany).
+- **Weryfikacja:** `StructureControlTest` (2 nowe przypadki).

@@ -1,4 +1,4 @@
-<form method="POST" action="{{ $action }}" class="max-w-md">
+<form method="POST" action="{{ $action }}" class="max-w-md" novalidate>
     @csrf
     @method('PUT')
     @foreach ([['given_name', __('account.person.given_name')], ['family_name', __('account.person.family_name')]] as [$field, $label])

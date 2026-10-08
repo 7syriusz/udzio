@@ -3,7 +3,7 @@
 @section('title', __('auth.screens.login.title'))
 
 @section('content')
-<form method="POST" action="{{ route('login') }}">
+<form method="POST" action="{{ route('login') }}" novalidate>
     @csrf
     @include('auth._field', ['name' => 'email', 'label' => __('auth.fields.email'), 'type' => 'email', 'autocomplete' => 'username'])
     @include('auth._field', ['name' => 'password', 'label' => __('auth.fields.password'), 'type' => 'password', 'autocomplete' => 'current-password'])

@@ -1129,3 +1129,29 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   spoza zakresu — 404. Ekran — E3.10f.
 - **Dane lokalne:** w bazie deweloperskiej WOK pozostał aktywny pod zarchiwizowanym „Koło Wołów” (sprzed zmiany).
 - **Weryfikacja:** `StructureControlTest` (2 nowe przypadki).
+
+## Z-048 — Wzorcowy ekran organizacji (E3.10f, 2026-10-09; do oceny Jakuba)
+
+- **Styl** (kierunek zaakceptowany przez Jakuba, ekran do oceny przed przeniesieniem na inne ekrany): jasne tło,
+  białe grupy, cienkie obramowania, systemowa czcionka, jeden niebieski kolor akcji i czerwony dla działań
+  destrukcyjnych — zmienne w `resources/css/app.css` (`--color-ios-*`; odcienie ciemniejsze niż Apple, aby mały tekst
+  miał kontrast co najmniej 4,5:1). Komponenty: `x-ui.section`, `x-ui.row-link`, `x-ui.field`, `x-ui.actions`,
+  `x-ui.notice`. Menu z wyróżnioną bieżącą sekcją (`aria-current`) — wspólne dla wszystkich ekranów.
+- **Układ jednostki:** położenie (odnośniki do widocznych jednostek nadrzędnych), „Zarządzaj” — lista działań, do których
+  konto ma prawo (Dodaj jednostkę podrzędną, Zmień nazwę, Przenieś, Archiwizuj), „Jednostki podrzędne” jako drzewo
+  wierszy-odnośników, „Zarchiwizowane jednostki” z dzisiejszym prawem do historii.
+- **Działania:** każde na osobnym ekranie z „Anuluj” (powrót bez zmian) i jednym przyciskiem. Tworzenie („Nazwa
+  jednostki podrzędnej”, „Utwórz”) i zmiana nazwy — bez pola powodu; powód w audycie zapisywany automatycznie
+  („unit created / renamed / moved on the organization screen”). Przeniesienie: wybór miejsca, potem potwierdzenie —
+  co, skąd, dokąd, jednostki podrzędne przenoszone razem, liczba osób tracących i zyskujących dostęp przez role
+  nadane wyżej w strukturze; „Anuluj” / „Przenieś”. Archiwizacja: skutki (lista jednostek podrzędnych archiwizowanych
+  razem, Z-047), „Powód archiwizacji”, przy całej organizacji ponownie wpisana nazwa; „Anuluj” / „Archiwizuj”.
+- **Zarchiwizowane jednostki i historia:** lista z datą archiwizacji (`dd.mm.rrrr`), historia: chwila archiwizacji,
+  położenie w tej chwili, okresy położenia w czasie. Dostęp jak w Z-047.
+- **Komunikaty:** „Jednostka »…« została utworzona / zarchiwizowana”, „Organizacja »…« została zarchiwizowana”,
+  „Nazwa została zmieniona na »…«”, „Jednostka »…« została przeniesiona do »…«”; po założeniu bez weryfikacji
+  dwuetapowej — jeden komunikat z przyciskiem jej włączenia. Błędy przy polach w języku etykiet.
+- **Walidacja tylko po polsku:** każdy formularz ma `novalidate`, więc przeglądarka nie pokazuje własnych komunikatów
+  (np. „Please fill out this field”); pilnuje tego `ArchitectureTest`.
+- **Weryfikacja:** `OrganizationScreensTest` (13 przypadków HTTP), kontrola wizualna 1280 px i 390 px (bez przewijania
+  w poziomie, ścieżka klawiaturą: Tab → „Dodaj jednostkę podrzędną” → Enter → nazwa → Enter).

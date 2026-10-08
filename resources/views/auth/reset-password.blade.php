@@ -3,7 +3,7 @@
 @section('title', __('auth.screens.reset_password.title'))
 
 @section('content')
-<form method="POST" action="{{ route('password.update') }}">
+<form method="POST" action="{{ route('password.update') }}" novalidate>
     @csrf
     <input type="hidden" name="token" value="{{ $request->route('token') }}">
     @include('auth._field', ['name' => 'email', 'label' => __('auth.fields.email'), 'type' => 'email', 'autocomplete' => 'username'])

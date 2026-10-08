@@ -58,6 +58,14 @@ return [
             'ignore_exceptions' => false,
         ],
 
+        // Messages of the local review instance (MAIL_LOG_CHANNEL=podglad, E3.10d), kept apart from development logs.
+        'podglad' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/podglad.log'),
+            'level' => 'debug',
+            'replace_placeholders' => true,
+        ],
+
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),

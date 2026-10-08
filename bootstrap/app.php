@@ -5,9 +5,11 @@ use App\Http\Exceptions\RenderUserFacingErrors;
 use App\Http\Middleware\RequireTwoFactor;
 use App\Http\Middleware\ResolveActor;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\TrustConfiguredProxies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Session\Middleware\AuthenticateSession;
 
@@ -22,6 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Ends sessions whose password hash is outdated (logout of other devices, password reset).
         $middleware->web(append: [AuthenticateSession::class, SetLocale::class]);
         $middleware->alias(['mfa' => RequireTwoFactor::class]);
+        // Forwarding headers only from configured proxies, e.g. a local review tunnel (E3.10d).
+        $middleware->replace(TrustProxies::class, TrustConfiguredProxies::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(new AuditAccessDenials);

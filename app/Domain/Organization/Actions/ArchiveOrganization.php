@@ -8,6 +8,7 @@ use App\Domain\Organization\Enums\OrganizationStatus;
 use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\OrganizationParent;
+use App\Domain\Organization\OrganizationHierarchy;
 use App\Domain\Platform\ActorContext;
 use App\Domain\Platform\AuditReason;
 use App\Domain\Platform\Enums\ActorType;
@@ -19,8 +20,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 /**
- * Archives an organization or a unit without deleting anything — history, audit, role assignments and the earlier
- * position stay (E3.10a1, Z-043).
+ * Archives an organization or a unit together with all its active sub-units (E3.10e, Z-047) without deleting
+ * anything — history, audit, role assignments and every unit's position at that moment stay (E3.10a1, Z-043). An
+ * active unit is never left below an archived one. Every archived unit gets its own audited change, with the same
+ * moment and reason.
  * - A unit: `structure.manage` over the unit and over its parent.
  * - A whole organization (a root): `organization.manage`, and for a person also confirmed MFA and an explicit
  *   confirmation — the organization's name typed again; the reason is always required.
@@ -32,6 +35,7 @@ final class ArchiveOrganization
         private readonly AccessDecider $access,
         private readonly OperationCorrelation $operation,
         private readonly ActorContext $context,
+        private readonly OrganizationHierarchy $hierarchy,
     ) {}
 
     /** @param string|null $confirmation the organization's name typed again (required from a person for a whole organization) */
@@ -52,11 +56,15 @@ final class ArchiveOrganization
                 $this->access->authorizeAll(Permission::StructureManage, [$current, $parent]);
             }
 
-            $current->status = OrganizationStatus::Archived;
-            $current->archived_at = $now;
-            $current->save();
+            $subtree = $this->hierarchy->descendantsAt($current, $now)->filter(fn (Organization $unit) => $unit->status === OrganizationStatus::Active);
+            foreach ([$current, ...$subtree->all()] as $unit) {
+                $locked = Organization::query()->whereKey($unit->getKey())->lockForUpdate()->firstOrFail();
+                $locked->status = OrganizationStatus::Archived;
+                $locked->archived_at = $now;
+                $locked->save();
+            }
 
-            return $current;
+            return $current->fresh();
         })));
     }
 

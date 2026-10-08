@@ -3,6 +3,7 @@
 namespace Tests\Feature\Domain\Organization;
 
 use App\Domain\Organization\Access\AccessDecider;
+use App\Domain\Organization\Access\DataVisibility;
 use App\Domain\Organization\Access\PlatformAccess;
 use App\Domain\Organization\Actions\ArchiveOrganization;
 use App\Domain\Organization\Actions\AssignRole;
@@ -12,6 +13,7 @@ use App\Domain\Organization\Actions\FoundOrganization;
 use App\Domain\Organization\Actions\GrantPlatformRole;
 use App\Domain\Organization\Actions\MoveOrganization;
 use App\Domain\Organization\Actions\RenameOrganization;
+use App\Domain\Organization\Actions\RevokeRoleAssignment;
 use App\Domain\Organization\Enums\OrganizationStatus;
 use App\Domain\Organization\Enums\Permission;
 use App\Domain\Organization\Enums\PlatformPermission;
@@ -349,5 +351,55 @@ class StructureControlTest extends TestCase
         $this->assertSame([$organization->id], $this->app->make(OrganizationHierarchy::class)->ancestorsAt($unit, $beforeArchive)->modelKeys());
         $this->assertSame(1, RoleAssignment::query()->where('user_id', $localAdmin->id)->where('scope_organization_id', $unit->id)->count(), 'Przypisania zostają.');
         $this->assertSame(1, AuditEntry::query()->where(['action' => 'organization.created', 'subject_id' => (string) $unit->id])->count(), 'Audyt zostaje.');
+    }
+
+    public function test_archiving_a_unit_archives_its_whole_subtree_and_keeps_every_position(): void
+    {
+        $founder = User::factory()->withTwoFactor()->create();
+        $organization = $this->found($founder);
+        $create = fn (Organization $parent, string $name) => tap($this->as($founder, fn () => $this->app->make(CreateOrganizationUnit::class)->handle($parent, $name, 'Struktura')), fn () => $this->travel(1)->second());
+        $circle = $create($organization, 'Koło Wołów');
+        $team = $create($circle, 'WOK');
+        $section = $create($team, 'Sekcja WOK');
+        $other = $create($organization, 'Koło Jelenia Góra');
+
+        $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($circle, 'Likwidacja koła'));
+
+        foreach ([$circle, $team, $section] as $unit) {
+            $this->assertSame(OrganizationStatus::Archived, $unit->fresh()->status, $unit->name);
+            $this->assertTrue($unit->fresh()->archived_at->equalTo($circle->fresh()->archived_at), 'Ta sama chwila archiwizacji.');
+            $this->assertSame(1, AuditEntry::query()->where(['action' => 'organization.updated', 'subject_id' => (string) $unit->id, 'reason' => 'Likwidacja koła'])->count(), 'Każda jednostka ma własny wpis w audycie.');
+        }
+        $this->assertSame(OrganizationStatus::Active, $other->fresh()->status);
+        $this->assertSame([$team->id, $circle->id, $organization->id], $this->app->make(OrganizationHierarchy::class)->ancestorsAt($section, now()->subSecond())->modelKeys(), 'Położenie jednostek zostaje w historii.');
+        $this->assertSame(3, OrganizationParent::query()->whereIn('organization_id', [$circle->id, $team->id, $section->id])->whereNull('valid_to')->count());
+    }
+
+    public function test_archived_units_are_visible_only_with_todays_history_right(): void
+    {
+        $founder = User::factory()->withTwoFactor()->create();
+        $organization = $this->found($founder);
+        $circle = $this->as($founder, fn () => $this->app->make(CreateOrganizationUnit::class)->handle($organization, 'Koło Wołów', 'Struktura'));
+        $this->travel(1)->second();
+        $team = $this->as($founder, fn () => $this->app->make(CreateOrganizationUnit::class)->handle($circle, 'WOK', 'Struktura'));
+        $this->travel(1)->second();
+        $viewer = $this->holder($organization, ['organization.view'], $organization);
+        $historian = $this->holder($organization, ['structure.history.view'], $organization);
+        $this->as($founder, fn () => $this->app->make(ArchiveOrganization::class)->handle($circle, 'Likwidacja koła'));
+        $this->travel(1)->second();
+        $visibility = $this->app->make(DataVisibility::class);
+
+        $this->assertEqualsCanonicalizing([$circle->id, $team->id], $visibility->archivedOrganizations($founder)->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([$circle->id, $team->id], $visibility->archivedOrganizations($historian)->pluck('id')->all());
+        $this->assertSame($team->id, $visibility->findArchivedOrganization($historian, $team->public_id)->id);
+        $this->assertDenied(fn () => $visibility->archivedOrganizations($viewer), 'history_not_permitted');
+
+        $this->asSystem(fn () => $this->app->make(RevokeRoleAssignment::class)->handle(RoleAssignment::query()->where('user_id', $historian->id)->sole(), 'Koniec funkcji'));
+        $this->travel(1)->second();
+        $this->assertDenied(fn () => $visibility->archivedOrganizations($historian), 'history_not_permitted');
+
+        $foreignFounder = User::factory()->withTwoFactor()->create();
+        $this->found($foreignFounder, 'Klub Obcy');
+        $this->assertDenied(fn () => $visibility->findArchivedOrganization($foreignFounder, $team->public_id), 'not_visible');
     }
 }

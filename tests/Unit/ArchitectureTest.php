@@ -102,6 +102,26 @@ class ArchitectureTest extends TestCase
         $this->assertSame([], $offenders, 'Daty poza DateDisplay lub w układzie mm/dd/yyyy (E3.10c).');
     }
 
+    /**
+     * Forms show the server's Polish validation messages, never the browser's own (e.g. "Please fill out this
+     * field" in an English browser): every form has `novalidate` (E3.10f).
+     */
+    public function test_forms_leave_validation_messages_to_the_application(): void
+    {
+        $offenders = [];
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->root('resources/views'), RecursiveDirectoryIterator::SKIP_DOTS)) as $file) {
+            // Attribute values may contain ">" (e.g. $unit->public_id), so quoted parts are skipped as a whole.
+            preg_match_all('/<form\b(?:[^>"]|"[^"]*")*>/s', (string) file_get_contents($file->getPathname()), $forms);
+            foreach ($forms[0] as $form) {
+                if (! str_contains($form, 'novalidate')) {
+                    $offenders[] = $file->getFilename();
+                }
+            }
+        }
+
+        $this->assertSame([], array_values(array_unique($offenders)), 'Formularz bez novalidate — przeglądarka pokaże własne, nieprzetłumaczone komunikaty.');
+    }
+
     public function test_views_contain_no_hardcoded_text(): void
     {
         $offenders = [];

@@ -17,11 +17,11 @@
                     {{ __('account.contacts.unverified_unavailable') }}
                 @else
                     {{ __('account.contacts.unverified') }}
-                    <form method="POST" action="{{ route('account.contacts.verification.send', $contact) }}" class="inline">
+                    <form method="POST" action="{{ route('account.contacts.verification.send', $contact) }}" class="inline" novalidate>
                         @csrf
                         <button class="text-blue-700 underline">{{ __('account.contacts.send_code') }}</button>
                     </form>
-                    <form method="POST" action="{{ route('account.contacts.verify', $contact) }}" class="mt-1 flex gap-2">
+                    <form method="POST" action="{{ route('account.contacts.verify', $contact) }}" class="mt-1 flex gap-2" novalidate>
                         @csrf
                         <label class="sr-only" for="code-{{ $contact->public_id }}">{{ __('account.contacts.code') }}</label>
                         <input id="code-{{ $contact->public_id }}" name="code" inputmode="numeric" autocomplete="one-time-code" class="w-28 rounded border px-2 py-1">
@@ -30,7 +30,7 @@
                 @endif
             </td>
             <td>
-                <form method="POST" action="{{ route('account.contacts.destroy', $contact) }}">
+                <form method="POST" action="{{ route('account.contacts.destroy', $contact) }}" novalidate>
                     @csrf
                     @method('DELETE')
                     <button class="text-red-700 underline">{{ __('ui.actions.remove') }}</button>
@@ -46,7 +46,7 @@
 @error('contact') <p class="mb-4 text-red-700">{{ $message }}</p> @enderror
 
 <h2 class="mb-2 text-lg font-semibold">{{ __('account.contacts.add_title') }}</h2>
-<form method="POST" action="{{ route('account.contacts.store') }}" class="flex max-w-xl flex-wrap items-end gap-2">
+<form method="POST" action="{{ route('account.contacts.store') }}" class="flex max-w-xl flex-wrap items-end gap-2" novalidate>
     @csrf
     <div>
         <label for="channel" class="block text-sm">{{ __('account.contacts.channel') }}</label>

@@ -4,7 +4,7 @@
 
 @section('content')
 <p class="mb-4">{{ __('auth.screens.two_factor_challenge.intro') }}</p>
-<form method="POST" action="{{ route('two-factor.login.store') }}">
+<form method="POST" action="{{ route('two-factor.login.store') }}" novalidate>
     @csrf
     @include('auth._field', ['name' => 'code', 'label' => __('auth.screens.two_factor_challenge.code'), 'autocomplete' => 'one-time-code', 'required' => false])
     @include('auth._field', ['name' => 'recovery_code', 'label' => __('auth.screens.two_factor_challenge.recovery_code'), 'required' => false])

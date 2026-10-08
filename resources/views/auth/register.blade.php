@@ -3,7 +3,7 @@
 @section('title', __('auth.screens.register.title'))
 
 @section('content')
-<form method="POST" action="{{ route('register') }}">
+<form method="POST" action="{{ route('register') }}" novalidate>
     @csrf
     @include('auth._field', ['name' => 'given_name', 'label' => __('auth.fields.given_name'), 'autocomplete' => 'given-name'])
     @include('auth._field', ['name' => 'family_name', 'label' => __('auth.fields.family_name'), 'autocomplete' => 'family-name'])

@@ -8,25 +8,28 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
 </head>
-<body class="min-h-screen bg-gray-50 text-gray-900">
-    <header class="border-b bg-white">
-        <nav class="mx-auto flex max-w-4xl flex-wrap items-center gap-4 px-4 py-3" aria-label="{{ __('ui.nav.label') }}">
-            <a href="{{ route('account.show') }}" class="font-semibold">{{ config('app.name') }}</a>
-            <a href="{{ route('account.show') }}" class="text-blue-700 underline">{{ __('ui.nav.account') }}</a>
-            <a href="{{ route('account.contacts.index') }}" class="text-blue-700 underline">{{ __('ui.nav.contacts') }}</a>
-            <a href="{{ route('account.represented.index') }}" class="text-blue-700 underline">{{ __('ui.nav.represented') }}</a>
-            <a href="{{ route('account.security') }}" class="text-blue-700 underline">{{ __('ui.nav.security') }}</a>
-            <a href="{{ route('organizations.index') }}" class="text-blue-700 underline">{{ __('ui.nav.organizations') }}</a>
-            <form method="POST" action="{{ route('logout') }}" class="ml-auto">
+<body class="min-h-screen bg-ios-bg text-ios-label antialiased">
+    <header class="border-b border-ios-separator bg-ios-card">
+        <nav class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-1 gap-y-2 px-4 py-2" aria-label="{{ __('ui.nav.label') }}">
+            <a href="{{ route('account.show') }}" class="mr-3 py-2 font-semibold">{{ config('app.name') }}</a>
+            @foreach ([['account.show', 'account.show', 'ui.nav.account'], ['account.contacts.index', 'account.contacts.*', 'ui.nav.contacts'], ['account.represented.index', 'account.represented.*', 'ui.nav.represented'], ['account.security', 'account.security', 'ui.nav.security'], ['organizations.index', 'organizations.*', 'ui.nav.organizations']] as [$route, $pattern, $label])
+                @php($current = request()->routeIs($pattern))
+                <a href="{{ route($route) }}" @if ($current) aria-current="page" @endif
+                   class="rounded-lg px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ios-blue {{ $current ? 'bg-ios-bg font-semibold text-ios-blue' : 'text-ios-label hover:bg-ios-bg' }}">{{ __($label) }}</a>
+            @endforeach
+            <form method="POST" action="{{ route('logout') }}" class="ml-auto" novalidate>
                 @csrf
-                <button type="submit" class="text-sm underline">{{ __('ui.nav.logout') }}</button>
+                <button type="submit" class="rounded-lg px-3 py-2 text-sm text-ios-secondary hover:bg-ios-bg focus-visible:outline-2 focus-visible:outline-ios-blue">{{ __('ui.nav.logout') }}</button>
             </form>
         </nav>
     </header>
-    <main class="mx-auto max-w-4xl px-4 py-8">
-        <h1 class="mb-6 text-2xl font-semibold">@yield('title')</h1>
+    <main class="mx-auto max-w-3xl px-4 py-6">
+        @hasSection('back')
+            <div class="mb-2">@yield('back')</div>
+        @endif
+        <h1 class="mb-5 text-2xl font-bold break-words text-balance">@yield('title')</h1>
         @if (session('status'))
-            <p class="mb-4 rounded bg-green-50 p-3 text-green-800" role="status">{{ session('status') }}</p>
+            <x-ui.notice tone="success">{{ session('status') }}</x-ui.notice>
         @endif
         @yield('content')
     </main>

@@ -1,20 +1,35 @@
 @extends('layouts.app')
 
-@section('title', __('organization.screens.archive_title', ['name' => $organization->name]))
+@section('back')
+    @include('organizations._back', ['href' => route('organizations.show', $unit->public_id), 'label' => $unit->name])
+@endsection
+
+@section('title', __('organization.screens.archive_title', ['name' => $unit->name]))
 
 @section('content')
-<div class="mb-6 rounded border border-red-300 bg-red-50 p-4 text-red-900" role="alert">
-    {{ $isRoot ? __('organization.screens.archive_root_warning') : __('organization.screens.archive_unit_warning') }}
-</div>
-<form method="POST" action="{{ route('organizations.archive', $organization->public_id) }}" class="max-w-xl">
-    @csrf
-    @include('auth._field', ['name' => 'reason', 'label' => __('organization.screens.reason')])
-    @if ($isRoot)
-        @include('auth._field', ['name' => 'confirmation', 'label' => __('organization.screens.archive_confirmation', ['name' => $organization->name])])
+<x-ui.notice tone="danger">
+    <p class="mb-2 font-semibold">{{ $isRoot ? __('organization.screens.archive_root_warning') : __('organization.screens.archive_unit_warning') }}</p>
+    @if ($subUnits->isEmpty())
+        <p class="mb-2">{{ __('organization.screens.archive_no_sub_units') }}</p>
+    @else
+        <p>{{ __('organization.screens.archive_sub_units', ['count' => $subUnits->count()]) }}</p>
+        <ul class="mb-2 list-disc pl-5">
+            @foreach ($subUnits as $sub)
+                <li class="break-words">{{ $sub->name }}</li>
+            @endforeach
+        </ul>
     @endif
-    <div class="flex items-center gap-4">
-        <button type="submit" class="rounded bg-red-700 px-4 py-2 text-white">{{ __('organization.screens.archive_submit') }}</button>
-        <a href="{{ route('organizations.show', $organization->public_id) }}" class="underline">{{ __('organization.screens.cancel') }}</a>
-    </div>
+    <p>{{ __('organization.screens.archive_kept') }}</p>
+</x-ui.notice>
+
+<form method="POST" action="{{ route('organizations.archive', $unit->public_id) }}" novalidate>
+    @csrf
+    <x-ui.section>
+        <x-ui.field name="reason" :label="__('organization.screens.archive_reason')" required />
+        @if ($isRoot)
+            <x-ui.field name="confirmation" :label="__('organization.screens.archive_confirmation', ['name' => $unit->name])" required />
+        @endif
+    </x-ui.section>
+    <x-ui.actions :cancel="route('organizations.show', $unit->public_id)" :submit="__('organization.screens.archive_submit')" destructive />
 </form>
 @endsection

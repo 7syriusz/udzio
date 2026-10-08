@@ -12,7 +12,6 @@
         {{ __('account.person.not_linked') }}
     </p>
 @else
-    <p class="mb-6 text-sm text-gray-600">{{ __('account.person.identifier', ['id' => $person->public_id]) }}</p>
     @include('account._person-form', ['action' => route('account.update')])
 @endif
 @endsection

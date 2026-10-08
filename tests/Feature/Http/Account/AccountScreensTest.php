@@ -55,7 +55,7 @@ class AccountScreensTest extends TestCase
 
         $this->get('/account')->assertOk()->assertSee('Moje dane')->assertSee('Nowak');
         $this->get('/account/contacts')->assertOk()->assertSee('Brak kontaktów');
-        $this->get('/account/security')->assertOk()->assertSee('Uwierzytelnianie dwuskładnikowe')->assertSee('Wyłączone');
+        $this->get('/account/security')->assertOk()->assertSee('Weryfikacja dwuetapowa')->assertSee('Wyłączona');
         $this->get('/account/represented')->assertOk()->assertSee('Nie reprezentujesz żadnej osoby');
     }
 

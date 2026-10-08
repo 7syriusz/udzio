@@ -1155,3 +1155,19 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   (np. „Please fill out this field”); pilnuje tego `ArchitectureTest`.
 - **Weryfikacja:** `OrganizationScreensTest` (13 przypadków HTTP), kontrola wizualna 1280 px i 390 px (bez przewijania
   w poziomie, ścieżka klawiaturą: Tab → „Dodaj jednostkę podrzędną” → Enter → nazwa → Enter).
+
+## Z-049 — Konto i bezpieczeństwo po przeglądzie (E3.10g, 2026-10-09)
+
+- **„Weryfikacja dwuetapowa”** (nazwa w całym interfejsie zamiast „uwierzytelniania dwuskładnikowego”) z krótkim
+  wyjaśnieniem; stan po polsku: „Włączona”, „Wyłączona”, „Rozpoczęta — czeka na potwierdzenie kodem”. Rozpoczętą,
+  niepotwierdzoną konfigurację można anulować („Anuluj konfigurację” — usuwa sekret i kody, audyt; ponowne
+  rozpoczęcie daje nowy kod QR).
+- **Komunikaty Fortify** (kody typu `two-factor-authentication-enabled`) nie są pokazywane dosłownie:
+  `App\Http\StatusMessage` tłumaczy je przez `ui.status_codes` w obu układach stron.
+- **„Wyloguj inne urządzenia”** z wyjaśnieniem skutku (to urządzenie zostaje zalogowane).
+- **Podgląd hasła:** każde pole hasła (rejestracja, logowanie, ustawienie i reset, ponowne potwierdzenie, zmiana hasła,
+  wylogowanie innych urządzeń) ma własny przycisk „Pokaż hasło”/„Ukryj hasło” (`x-ui.password-input`, `aria-pressed`,
+  obsługa klawiaturą); domyślnie hasło jest ukryte, a bez JavaScriptu przycisk się nie pojawia.
+- **„Moje dane”** bez technicznego identyfikatora osoby.
+- **Weryfikacja:** `SecurityScreenTest` (5 przypadków), kontrola w przeglądarce (Tab na przycisk, Enter odsłania tylko
+  to pole).

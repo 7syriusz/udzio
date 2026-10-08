@@ -28,8 +28,8 @@
             <div class="mb-2">@yield('back')</div>
         @endif
         <h1 class="mb-5 text-2xl font-bold break-words text-balance">@yield('title')</h1>
-        @if (session('status'))
-            <x-ui.notice tone="success">{{ session('status') }}</x-ui.notice>
+        @if ($status = \App\Http\StatusMessage::for(session('status')))
+            <x-ui.notice tone="success">{{ $status }}</x-ui.notice>
         @endif
         @yield('content')
     </main>

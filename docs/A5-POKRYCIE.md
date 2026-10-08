@@ -1,6 +1,6 @@
 # Pokrycie kryteriów A5
 
-Kryteria akceptacji z [E1E2E3A5Skalik §17](specifications/E1E2E3A5Skalik.md) i testy, które je sprawdzają.
+Kryteria akceptacji z [UDZIO Core A5 §17](specifications/UDZIO-Core-A5.md) i testy, które je sprawdzają.
 Uzupełniane przy zamknięciu każdego etapu.
 
 | Kryterium | Stan | Gdzie | Testy |

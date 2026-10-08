@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Validator;
  */
 final class RegisterPerson
 {
-    /** @param array{given_name: string, family_name: string, birth_date?: ?string} $data */
+    /** @param array{given_name: string, family_name: string} $data */
     public function handle(array $data): Person
     {
         return Person::create(Validator::make($data, PersonRules::rules())->validate());

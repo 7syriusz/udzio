@@ -14,7 +14,6 @@ return new class extends Migration
             $table->ulid('public_id')->unique();
             $table->string('given_name', 100);
             $table->string('family_name', 100);
-            $table->date('birth_date')->nullable();
             $table->timestamps(6);
         });
     }

@@ -19,14 +19,14 @@ class RecordProtectedReadTest extends TestCase
     public function test_read_records_field_names_actor_and_purpose_but_never_values(): void
     {
         $this->app->make(ActorContext::class)->runAs(Actor::account('operator-3'), fn () => $this->app->make(RecordProtectedRead::class)
-            ->handle('person', 'P-1', ['birth_date', 'medical_notes', 'birth_date'], 'org-1', 'verification of age limit'));
+            ->handle('person', 'P-1', ['document_number', 'medical_notes', 'document_number'], 'org-1', 'verification of a document'));
 
         $entry = AuditEntry::on('audit')->where('action', 'data.read')->sole();
         $this->assertSame('operator-3', $entry->actor_id);
         $this->assertSame('person', $entry->subject_type);
         $this->assertSame('org-1', $entry->organization_id);
-        $this->assertSame('verification of age limit', $entry->reason);
-        $this->assertSame(['fields' => ['birth_date', 'medical_notes']], $entry->after_values);
+        $this->assertSame('verification of a document', $entry->reason);
+        $this->assertSame(['fields' => ['document_number', 'medical_notes']], $entry->after_values);
     }
 
     public function test_read_stays_recorded_when_surrounding_transaction_rolls_back(): void

@@ -14,7 +14,6 @@ return [
         'given_name' => 'Imię',
         'family_name' => 'Nazwisko',
         'full_name' => 'Imię i nazwisko',
-        'birth_date' => 'Data urodzenia',
     ],
 
     'contacts' => [

@@ -86,6 +86,22 @@ class ArchitectureTest extends TestCase
         $this->assertSame([], $offenders, 'Operacja uprzywilejowana dostępna przez HTTP przed wdrożeniem ekranu z kontrolą: '.implode(', ', $offenders));
     }
 
+    /**
+     * Dates are shown and typed in the order of the interface language (Polish: dd.mm.rrrr) through DateDisplay
+     * (E3.10c). Native date pickers follow the browser's language (e.g. mm/dd/yyyy in an English browser), so views
+     * do not use them, do not format dates themselves and no text carries the month-first order.
+     */
+    public function test_dates_follow_the_interface_language(): void
+    {
+        $offenders = [
+            ...array_map(fn ($f) => "natywne pole daty: {$f}", $this->filesMatching(['resources/views'], '/type\s*=\s*["\'](date|datetime-local|month|week|time)["\']/i')),
+            ...array_map(fn ($f) => "formatowanie daty w widoku: {$f}", $this->filesMatching(['resources/views'], '/->(format|isoFormat|translatedFormat|toDateString|toDateTimeString)\s*\(/')),
+            ...array_map(fn ($f) => "kolejność miesiąc/dzień: {$f}", $this->filesMatching(['resources/views', 'lang', 'app', 'config'], '/mm\/dd\/(yyyy|rrrr)|[\'"]m\/d\/Y/i')),
+        ];
+
+        $this->assertSame([], $offenders, 'Daty poza DateDisplay lub w układzie mm/dd/yyyy (E3.10c).');
+    }
+
     public function test_views_contain_no_hardcoded_text(): void
     {
         $offenders = [];

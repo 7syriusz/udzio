@@ -4,9 +4,9 @@
 
 Nowa, czysta wersja projektu Udzio, rozpoczęta 2026-09-26.
 
-Poprzednia wersja (Udzio / SKALIK) jest zamknięta i archiwalna:
-repozytorium `7syriusz/udzio_old_project`, tag `archiwum-2026-09-26`.
-Służy wyłącznie jako materiał referencyjny; kod nie jest przenoszony.
+Poprzednia wersja projektu jest zamknięta i archiwalna (repozytorium `7syriusz/udzio_old_project`,
+tag `archiwum-2026-09-26`). Nie jest wzorcem ani źródłem wymagań: jej kod i dokumenty nie są przenoszone,
+a jedyną podstawą jest specyfikacja UDZIO Core A5.
 
 ## Uruchomienie lokalne
 
@@ -66,7 +66,7 @@ CI buduje obrazy i wykonuje test dymny stosu (`/up`, strona główna, blokada `/
 
 ## Dokumentacja
 
-- Specyfikacja nadrzędna: [docs/specifications/E1E2E3A5Skalik.md](docs/specifications/E1E2E3A5Skalik.md)
+- Specyfikacja nadrzędna: [docs/specifications/UDZIO-Core-A5.md](docs/specifications/UDZIO-Core-A5.md)
 - Plan etapów i zasady pracy: [docs/PLAN-ETAPOW.md](docs/PLAN-ETAPOW.md)
 - Architektura i konwencje: [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md)
 - Rejestr założeń: [docs/ZALOZENIA.md](docs/ZALOZENIA.md)

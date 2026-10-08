@@ -33,7 +33,7 @@ class E2AcceptanceTest extends TestCase
 
         // An organizer records a mother and her daughter — no accounts yet.
         $mother = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Maria', 'family_name' => 'Nowak']);
-        $daughter = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Zosia', 'family_name' => 'Nowak', 'birth_date' => '2016-03-10']);
+        $daughter = $this->app->make(RegisterPerson::class)->handle(['given_name' => 'Zosia', 'family_name' => 'Nowak']);
         $email = $this->app->make(AddContact::class)->handle($mother, ContactChannel::Email, 'maria@example.test');
         $reason->because('confirmed by organizer by phone', fn () => $email->update(['verified_at' => now()]));
         $this->app->make(GrantRepresentation::class)->handle($mother, $daughter, [RepresentationScope::ProfileView, RepresentationScope::ProfileUpdate], RepresentationMethod::Document, 'birth certificate no. AB-123 checked', now()->subDay(), 'guardian stated at registration desk');
@@ -55,7 +55,7 @@ class E2AcceptanceTest extends TestCase
         $this->assertSame($motherHistory, AuditEntry::query()->where('subject_type', 'person')->where('subject_id', (string) $mother->id)->pluck('id')->all());
 
         // A5-03: the mother (ACTOR) corrects her daughter's data (SUBJECT) from the account screen.
-        $this->put("/account/represented/{$daughter->public_id}", ['given_name' => 'Zofia', 'family_name' => 'Nowak', 'birth_date' => '2016-03-10'])->assertRedirect();
+        $this->put("/account/represented/{$daughter->public_id}", ['given_name' => 'Zofia', 'family_name' => 'Nowak'])->assertRedirect();
 
         $change = AuditEntry::query()->where('action', 'person.updated')->where('subject_id', (string) $daughter->id)->sole();
         $this->assertSame(['account', (string) $account->id], [$change->actor_type->value, $change->actor_id]);

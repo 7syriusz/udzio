@@ -34,6 +34,9 @@ use LogicException;
  */
 final class EstablishRepresentation
 {
+    /** Grounds a policy may name: a checked document, a decision, or a declaration the policy accepts (Z-042). */
+    public const POLICY_METHODS = [RepresentationMethod::Document, RepresentationMethod::RoleDecision, RepresentationMethod::Declaration];
+
     public function __construct(
         private readonly GrantRepresentation $grant,
         private readonly AccessDecider $decider,
@@ -58,11 +61,6 @@ final class EstablishRepresentation
         return $this->operation->within(fn () => DB::transaction(function () use ($policy, $rules, $representative, $represented, $scopes, $checkedDocument, $from, $until, $reason): Representation {
             $unit = $this->unitOf($represented, $rules);
             $this->decider->authorize(Permission::RepresentationsEstablish, $unit, 'person', $represented->public_id);
-            $maxAge = $rules['represented']['max_age'] ?? null;
-            if ($maxAge !== null && ($represented->birth_date === null || $represented->birth_date->diffInYears($from) > $maxAge)) {
-                throw ValidationException::withMessages(['represented' => __('organization.validation.representation_person_not_covered')]);
-            }
-
             $representation = $this->grant->handle($representative, $represented, $scopes, RepresentationMethod::from($rules['method']), trim($checkedDocument), $from, $reason);
             if ($until !== null) {
                 $representation = $this->reason->because($reason, fn () => $representation->end($until));
@@ -86,8 +84,8 @@ final class EstablishRepresentation
         if (! is_array($rules)) {
             throw ValidationException::withMessages(['policy' => __('organization.validation.representation_policy_missing')]);
         }
-        if (! in_array($rules['method'] ?? null, [RepresentationMethod::Document->value, RepresentationMethod::RoleDecision->value], true)) {
-            throw new LogicException('A representation policy for a role uses a checked document or a role decision.');
+        if (! in_array($rules['method'] ?? null, array_map(fn (RepresentationMethod $method) => $method->value, self::POLICY_METHODS), true)) {
+            throw new LogicException('A representation policy for a role uses a checked document, a decision or an accepted declaration.');
         }
 
         return $rules;

@@ -12,7 +12,7 @@ final class UpdatePersonDetails
 {
     public function __construct(private readonly AuditReason $reason) {}
 
-    /** @param array{given_name?: string, family_name?: string, birth_date?: ?string} $data */
+    /** @param array{given_name?: string, family_name?: string} $data */
     public function handle(Person $person, array $data, string $reason): Person
     {
         $rules = Arr::only(PersonRules::rules(), array_keys($data));

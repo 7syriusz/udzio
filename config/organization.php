@@ -64,13 +64,16 @@ return [
         //   'method'        => 'document' | 'role_decision' (the ground the role records; acceptance and declaration
         //                      come from the parties themselves, never from a role),
         //   'document'      => what must be checked (shown to the operator, recorded in the audit),
-        //   'represented'   => ['functions' => list of membership functions or null, 'max_age' => int|null],
+        //   'represented'   => ['functions' => list of membership functions or null],
         //   'scopes'        => representation scopes the representative may receive,
         //   'max_days'      => longest period (an end date is then required) or null,
         //   'organizations' => public IDs of organizations whose units may use it, or null for all.
-        // Example: 'guardian_of_minor' => ['method' => 'document', 'document' => 'dokument potwierdzający opiekę',
-        //   'represented' => ['functions' => ['member'], 'max_age' => 17], 'scopes' => ['profile.view',
-        //   'registrations.manage', 'consents.manage'], 'max_days' => 365, 'organizations' => null],
+        // Age is not checked here: Core keeps no global birth date (Z-019). A policy relies on the checked document,
+        // decision or declaration it names; age rules from scenario data come later with rules and forms (E9).
+        // Example of a use of the universal representation (not a child scenario in Core):
+        // 'guardian' => ['method' => 'document', 'document' => 'dokument potwierdzający opiekę',
+        //   'represented' => ['functions' => ['member']], 'scopes' => ['profile.view', 'registrations.manage',
+        //   'consents.manage'], 'max_days' => 365, 'organizations' => null],
     ],
 
     'reads' => [

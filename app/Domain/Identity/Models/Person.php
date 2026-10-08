@@ -26,7 +26,7 @@ class Person extends Model implements ClassifiesData
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
-    protected $fillable = ['given_name', 'family_name', 'birth_date'];
+    protected $fillable = ['given_name', 'family_name'];
 
     protected static function booted(): void
     {
@@ -46,11 +46,6 @@ class Person extends Model implements ClassifiesData
     public function getRouteKeyName(): string
     {
         return 'public_id';
-    }
-
-    protected function casts(): array
-    {
-        return ['birth_date' => 'immutable_date'];
     }
 
     /** Contacts owned by this person (active and removed). */
@@ -80,7 +75,6 @@ class Person extends Model implements ClassifiesData
             'public_id' => DataClass::Internal,
             'given_name' => DataClass::Restricted,
             'family_name' => DataClass::Restricted,
-            'birth_date' => DataClass::Restricted,
         ];
     }
 

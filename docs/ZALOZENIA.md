@@ -154,7 +154,9 @@ Dla przyszłych modułów kontekstowych implementacja musi jawnie zwracać wła�
 
 ## Z-017 — Klasyfikacja danych i polityki klas (E1.7, zaktualizowane 2026-09-27; decyzja techniczno-bezpieczeństwowa)
 
-**Status:** rekomendowane wartości domyślne — do akceptacji Jakuba (skutki dla użytkownika poniżej).
+**Status:** wartości **robocze** — nie są ostateczną polityką (decyzja Jakuba 2026-10-08). Okresy przechowywania,
+w tym „2 lata” dla RESTRICTED, zostaną rozstrzygnięte w E12.1; do tego czasu dane nie są usuwane automatycznie,
+a bezterminowe przechowywanie nie jest rozwiązaniem docelowym.
 Klasa jest metadaną pola (`dataClassification()`); model audytowany musi sklasyfikować każde zapisywane
 pole, a pole bez klasy nie trafia ani do audytu, ani do eksportu. Scenariusz może podnieść klasę pola
 (A5 §12). Wartości: `config/data_classification.php`.
@@ -163,7 +165,7 @@ pole, a pole bez klasy nie trafia ani do audytu, ani do eksportu. Scenariusz mo�
 |---|---|---|---|---|---|
 | PUBLIC (nazwa wydarzenia) | widoczna | pełny | nie | dopóki istnieje rekord | zostaje |
 | INTERNAL (statusy, daty, identyfikatory) | widoczna | pełny | nie | dopóki istnieje rekord | zostaje |
-| RESTRICTED (imię, nazwisko, e-mail, telefon, data urodzenia) | tylko fakt zmiany | pełny dla uprawnionych | nie | 2 lata od końca ostatniej relacji | anonimizacja |
+| RESTRICTED (imię, nazwisko, e-mail, telefon) | tylko fakt zmiany | pełny dla uprawnionych | nie | wartość robocza: 2 lata od końca ostatniej relacji | anonimizacja |
 | SPECIAL CATEGORY (zdrowie, przynależność polityczna) | tylko fakt zmiany | zamaskowany | tak | 1 rok od końca celu | usunięcie |
 | SECRET (hasło, tokeny, sekret MFA, tajny głos) | tylko fakt zmiany | nigdy | tak | tylko do końca celu | usunięcie |
 
@@ -205,11 +207,14 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - **Globalna tożsamość:** tabela `people` nie ma kolumny organizacji ani scenariusza. Kontekst (członkostwo,
   zapis, rola) wskazuje osobę przez relację, więc nowy kontekst nie tworzy drugiej PERSON (A5-01).
   Widoczność danych osoby ograniczy SCOPE/CONTEXT (E3).
-- **F — dane podstawowe:** imię, nazwisko (wymagane), data urodzenia (opcjonalna, `RRRR-MM-DD`,
-  od 1900 r. do dziś). Wszystkie RESTRICTED: audyt zapisuje fakt zmiany, nie wartość. Dodatkowe pola
-  (płeć, PESEL, adres) dopiero, gdy wymaga ich scenariusz — z własną klasą danych (PESEL co najmniej RESTRICTED).
-- **F — brak automatycznego dopasowania:** rejestracja zawsze tworzy nową PERSON. Te same imię, nazwisko
-  i data urodzenia mogą należeć do dwóch osób, a błędne połączenie jest trudne do odwrócenia. Rozpoznanie
+- **F — dane podstawowe (zmienione w E3.10c, decyzja Jakuba 2026-10-08):** globalna PERSON ma wyłącznie imię
+  i nazwisko (wymagane, RESTRICTED: audyt zapisuje fakt zmiany, nie wartość). **Nie ma globalnej daty urodzenia**
+  — A5 jej nie wymaga, nie jest potrzebna do założenia konta, a zbieranie jej od wszystkich osób byłoby sprzeczne
+  z minimalizacją danych (wcześniejsze pole `birth_date` z E2.1 usunięto ze schematu, modelu, reguł i ekranów).
+  Inne dane osoby (data urodzenia, wiek, płeć, PESEL, adres) należą do kontekstu scenariusza — zgłoszenia,
+  formularza, relacji — z własnym źródłem, celem, dostępem i klasą danych (Z-045), nigdy automatycznie do PERSON.
+- **F — brak automatycznego dopasowania:** rejestracja zawsze tworzy nową PERSON. Te same imię i nazwisko
+  mogą należeć do dwóch osób, a błędne połączenie jest trudne do odwrócenia. Rozpoznanie
   przez zweryfikowany kontakt/konto — E2.4; łączenie duplikatów — MERGE (A5-13, późniejszy etap).
   Zmiana: `RegisterPerson`.
 - **Identyfikator:** publiczny ULID (`public_id`) jest niezmienny; na zewnątrz nigdy wewnętrzne `id`.
@@ -220,8 +225,10 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 - **Kontakt ≠ osoba:** kontakt ma jednego właściciela (PERSON). Ten sam adres może mieć kilka osób
   (wspólny e-mail rodziny) — nigdy ich nie łączy. Kontakt używany w cudzej sprawie pozostaje kontaktem
   właściciela; powiązanie osób daje REPRESENTATION (Z-025).
-- **Normalizacja:** e-mail przycinany i zapisywany małymi literami; telefon w formacie E.164. Numer bez
-  prefiksu dostaje kod kraju z `config/identity.php` (domyślnie +48), `00` zamieniane na `+`.
+- **Normalizacja:** e-mail przycinany i zapisywany małymi literami; telefon zawsze jako pełny numer
+  międzynarodowy (E.164) — każdy kraj, nie tylko Polska. Tylko numer wpisany bez kierunkowego dostaje domyślny kod
+  kraju z `config/identity.php` (+48 jako ustawienie polskiej instalacji); `00` zamieniane na `+`. Model nie zakłada,
+  że osoba lub organizacja ma polski numer; domyślny kraj będzie można ustawić dla instalacji lub organizacji.
 - **Niezmienność:** adres i właściciel kontaktu się nie zmieniają; nowy adres = nowy kontakt. Usunięcie
   ustawia `removed_at` (historia zostaje) i unieważnia oczekujące kody.
 - **Weryfikacja kodem:** 6 cyfr, ważny 30 min, 5 błędnych prób unieważnia kod, 5 próśb na godzinę; nowy kod
@@ -945,7 +952,7 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
 
 - Rola ustanawia reprezentację **tylko według polityki**, którą przewiduje scenariusz lub konfiguracja organizacji
   (`organization.representation_policies`, domyślnie pusta — żadna rola niczego nie ustanawia). Polityka określa:
-  wobec kogo (funkcje członkostwa, maksymalny wiek), na jakiej podstawie (`document` lub `role_decision`), jaki
+  wobec kogo (funkcje członkostwa), na jakiej podstawie (`document`, `role_decision` lub dopuszczone przez politykę oświadczenie `declaration`), jaki
   dokument trzeba sprawdzić, na jaki okres (`max_days` — wtedy data końca obowiązkowa), jakie zakresy dostaje
   reprezentant i w których organizacjach obowiązuje. Pracownik nie ustanawia reprezentacji, bo uważa ją za
   przydatną. Przykłady podstaw: dokument opieki rodzica, postanowienie sądu lub organu, upoważnienie potwierdzone
@@ -1065,3 +1072,28 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   jeszcze dostępu…” po założeniu; brak drogi powrotu na stronie błędu (dodane „Wróć do poprzedniej strony”);
   nieaktualne podpowiedzi „co najmniej 12 znaków” przy haśle (teraz z `identity.passwords.min_length`).
   Uwaga dla zmian widoków: nowe klasy Tailwind działają dopiero po `npm run build` (lub przy `npm run dev`).
+
+## Z-045 — Dane wieku i daty w scenariuszach; wyświetlanie dat (E3.10c, decyzje Jakuba 2026-10-08)
+
+- **Brak globalnej daty urodzenia (Z-019).** Gdy scenariusz naprawdę potrzebuje informacji o wieku, zbiera ją
+  w swoim kontekście — nie w PERSON:
+  - wydarzenie wymagające daty urodzenia — pole formularza zgłoszenia (REGISTRATION, E5; FORM, E9);
+  - zajęcia dla dzieci — potwierdzenie wieku w zgłoszeniu lub relacji uczestnictwa;
+  - oświadczenie zamiast daty, np. „Potwierdzam, że mam ukończone 18 lat” — zapisane jako odpowiedź z treścią
+    i wersją oświadczenia oraz chwilą złożenia;
+  - dokument potwierdzający wiek — fakt sprawdzenia (kto, kiedy, jaki dokument) w zgłoszeniu lub relacji.
+  Każda taka informacja ma źródło (formularz, oświadczenie, dokument), cel i dostęp wynikające ze scenariusza,
+  klasę danych ustawioną przez scenariusz i retencję zgłoszenia; widzą ją tylko uprawnieni w zakresie tego
+  zgłoszenia, nie inne organizacje. Nie staje się wspólną datą urodzenia osoby.
+- **Reprezentacja:** polityka nie sprawdza wieku automatycznie (usunięte `max_age`). Ustanowienie opiera się na
+  sprawdzonym dokumencie, decyzji albo oświadczeniu dopuszczonym przez politykę; reguły wieku zależne od danych
+  scenariusza zostaną podłączone później do mechanizmu reguł i formularzy. „Opiekun małoletniego” jest tylko
+  przykładem użycia uniwersalnej reprezentacji, nie scenariuszem dziecięcym w Core.
+- **Wyświetlanie dat** (`App\Domain\Platform\Localization\DateDisplay`, `config/localization.php`): wartości zapisane
+  w UTC (`app.timezone`), pokazywane w strefie `Europe/Warsaw` i w kolejności języka interfejsu — po polsku
+  `dd.mm.rrrr` i `dd.mm.rrrr, gg:mm`; wpisana data czytana w tym samym układzie (bez przepełnień typu 31.02).
+  Dotyczy formularzy, tabel, komunikatów, widoku audytu, e-maili i powiadomień (język odbiorcy, Z-036).
+  Strony mają `lang` zgodny z językiem (`pl`). Wizualne kontrole przeglądarką: `pl-PL` i `Europe/Warsaw`.
+  Natywne pola daty przeglądarki (`type="date"` itd.) są zakazane, bo pokazują układ według języka przeglądarki
+  (np. miesiąc przed dniem); zakazane jest też formatowanie dat w widokach i zapis miesiąc/dzień —
+  `ArchitectureTest::test_dates_follow_the_interface_language`. Obecnie interfejs nie wyświetla żadnej daty.

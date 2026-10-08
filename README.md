@@ -45,6 +45,35 @@ z własnymi połączeniami MySQL: `tests/Support/Concurrency/Race.php`.
 CI (GitHub Actions) przy każdym pushu sprawdza styl (Pint) i uruchamia testy na MySQL 8.4.
 Nie scalamy do `main` przy czerwonym CI.
 
+## Podgląd dla testera (tunel)
+
+Aplikację działającą lokalnie (także w Ubuntu w WSL) można pokazać innej osobie przez chroniony tunel Cloudflare.
+Działa na osobnej bazie `udzio_review` i porcie 8001; baza deweloperska i `.env` zostają bez zmian. Nie powstają dane
+przykładowe — tester sam zakłada konto i organizacje.
+
+Jednorazowo zainstaluj `cloudflared` w Ubuntu (wymagana wersja co najmniej 2026.9.3 — ochrona adresem e-mail):
+
+```bash
+cd /tmp && wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared-linux-amd64.deb && cloudflared --version
+```
+
+Przegląd (dwa terminale Ubuntu w katalogu projektu):
+
+```bash
+bin/podglad start                      # terminal 1: baza, migracje, style, serwer http://127.0.0.1:8001
+bin/podglad tunel jakub@example.com    # terminal 2: adres https://….trycloudflare.com tylko dla podanych e-maili
+```
+
+- Wyślij testerowi adres `https://….trycloudflare.com` z terminala 2. Po otwarciu poda swój e-mail i wpisze jednorazowy
+  kod od Cloudflare; działa na komputerze i telefonie. Kilka osób: kilka adresów po spacji.
+- E-maile UDZIO nie są wysyłane, tylko zapisywane w `storage/logs/podglad.log`. Gdy tester założy konto lub poprosi
+  o reset hasła, przekaż mu link: `bin/podglad linki jego@email`.
+- Wystawiony jest tylko port 8001 (bez serwera Vite i bez podglądu poczty); `APP_DEBUG=false`; nagłówki tunelu są
+  zaufane tylko z `127.0.0.1` (`TRUSTED_PROXIES`, Z-046).
+- Komputer, WSL i oba terminale muszą działać. Koniec przeglądu: Ctrl+C w obu terminalach — adres przestaje działać.
+- Po zakończeniu przeglądów: `bin/podglad usun` (usuwa bazę `udzio_review` i jej log, z potwierdzeniem).
+
 ## Produkcja (Docker)
 
 ```bash

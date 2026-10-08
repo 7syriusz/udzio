@@ -68,6 +68,13 @@ return [
     'timezone' => 'UTC',
 
     /*
+    | Proxies whose forwarding headers are trusted (comma-separated addresses), E3.10d. Empty: none. A local review
+    | tunnel on the same machine uses 127.0.0.1 (README, "Podgląd dla testera").
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

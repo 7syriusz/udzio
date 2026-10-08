@@ -1097,3 +1097,17 @@ usunięcia powstaną w etapie prywatności/utrzymania (najpóźniej E12). Szyfro
   Natywne pola daty przeglądarki (`type="date"` itd.) są zakazane, bo pokazują układ według języka przeglądarki
   (np. miesiąc przed dniem); zakazane jest też formatowanie dat w widokach i zapis miesiąc/dzień —
   `ArchitectureTest::test_dates_follow_the_interface_language`. Obecnie interfejs nie wyświetla żadnej daty.
+
+## Z-046 — Podgląd dla testera przez tunel (E3.10d, 2026-10-08)
+
+- **Cel:** Jakub ocenia ekrany na komputerze i telefonie, gdy aplikacja działa u Krzysztofa (Ubuntu w WSL), do czasu
+  serwera testowego (E12.9).
+- **Sposób:** `bin/podglad` — osobna baza `udzio_review`, port 8001, `APP_DEBUG=false`, poczta do
+  `storage/logs/podglad.log` (`MAIL_LOG_CHANNEL=podglad`), kolejka synchroniczna; Cloudflare Quick Tunnel z ochroną
+  adresem e-mail (`--allowed-mail`, jednorazowy kod; `cloudflared` ≥ 2026.9.3). Skrypt odmawia tunelu bez adresów
+  i ze starszą wersją `cloudflared`. Bez danych przykładowych: tester rejestruje się sam, linki z poczty przekazuje
+  Krzysztof (`bin/podglad linki`).
+- **Zaufane proxy:** `TrustConfiguredProxies` ufa nagłówkom `X-Forwarded-*` tylko z adresów w `app.trusted_proxies`
+  (`TRUSTED_PROXIES`, domyślnie pusto — nikt). Podgląd ustawia `127.0.0.1`, więc linki, style, przekierowania i podpisane
+  adresy (potwierdzenie e-maila) używają adresu HTTPS tunelu, a ciasteczka sesji są oznaczone `secure`.
+  Testy: `TrustedProxiesTest`. Na serwerze produkcyjnym wartość ustawia się dla rzeczywistego proxy (E12).

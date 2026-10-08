@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Local review instance of UDZIO for a tester, reached through a protected Cloudflare Quick Tunnel (E3.10d).
+# Runs on its own database (udzio_review) and port (8001); the development database and .env stay untouched.
+# No sample data is created: the tester registers and founds organizations through the screens.
+#
+#   bin/podglad start                 database, migrations, assets, server on http://127.0.0.1:8001
+#   bin/podglad tunel EMAIL [EMAIL…]  public HTTPS address, only for the given e-mail addresses (one-time code)
+#   bin/podglad linki [EMAIL]         latest e-mail confirmation and password reset links (mail is logged, not sent)
+#   bin/podglad usun                  removes the review database and its log after the review
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+DB=udzio_review
+PORT=8001
+MYSQL_CONTAINER=udzio-mysql
+LOG=storage/logs/podglad.log
+MIN_CLOUDFLARED=2026.9.3
+
+mysql_root() { docker exec "$MYSQL_CONTAINER" mysql -uroot -proot "$@" 2>/dev/null; }
+
+case "${1:-}" in
+  start)
+    docker inspect -f '{{.State.Running}}' "$MYSQL_CONTAINER" 2>/dev/null | grep -q true \
+      || { echo "Baza MySQL nie działa. Uruchom: docker compose up -d --wait"; exit 1; }
+    mysql_root -e "CREATE DATABASE IF NOT EXISTS \`$DB\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON \`$DB\`.* TO 'udzio'@'%';"
+    DB_DATABASE=$DB DB_USERNAME=root DB_PASSWORD=root php artisan migrate --force --no-interaction
+    npm run build
+    php artisan optimize:clear > /dev/null
+    echo
+    echo "Podgląd: http://127.0.0.1:$PORT (baza $DB). W drugim terminalu: bin/podglad tunel ADRES_TESTERA"
+    echo "Zatrzymanie: Ctrl+C."
+    exec env DB_DATABASE=$DB APP_DEBUG=false TRUSTED_PROXIES=127.0.0.1 MAIL_MAILER=log MAIL_LOG_CHANNEL=podglad \
+      QUEUE_CONNECTION=sync PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=127.0.0.1 --port=$PORT
+    ;;
+
+  tunel)
+    shift
+    [ "$#" -gt 0 ] || { echo "Podaj adres e-mail testera: bin/podglad tunel jakub@example.com. Tunel bez ochrony nie jest uruchamiany."; exit 1; }
+    command -v cloudflared > /dev/null || { echo "Brak cloudflared. Instalacja: README, sekcja \"Podgląd dla testera\"."; exit 1; }
+    version=$(cloudflared --version | grep -oE '[0-9]{4}\.[0-9]+\.[0-9]+' | head -1)
+    if [ "$(printf '%s\n%s\n' "$MIN_CLOUDFLARED" "$version" | sort -V | head -1)" != "$MIN_CLOUDFLARED" ]; then
+      echo "cloudflared $version nie obsługuje ochrony adresem e-mail (wymagane $MIN_CLOUDFLARED). Zaktualizuj — tunel bez ochrony nie jest uruchamiany."
+      exit 1
+    fi
+    curl -s -o /dev/null "http://127.0.0.1:$PORT/up" || { echo "Podgląd nie działa. Najpierw: bin/podglad start"; exit 1; }
+    args=()
+    for mail in "$@"; do args+=(--allowed-mail "$mail"); done
+    echo "Dostęp tylko dla: $*. Adres https://…trycloudflare.com pojawi się poniżej. Zatrzymanie: Ctrl+C."
+    exec cloudflared tunnel --url "http://127.0.0.1:$PORT" "${args[@]}"
+    ;;
+
+  linki)
+    [ -f "$LOG" ] || { echo "Brak wiadomości w $LOG."; exit 0; }
+    python3 - "$LOG" "${2:-}" <<'PY'
+import re, sys, html
+log, who = sys.argv[1], sys.argv[2].lower()
+text = open(log, encoding='utf-8', errors='replace').read()
+messages = re.split(r'\n(?=\[\d{4}-\d{2}-\d{2}[^\]]*\] \w+\.\w+: )', text)
+found = {}
+for message in messages:
+    recipient = re.search(r'^To: (.+)$', message, re.M)
+    if who and (not recipient or who not in recipient.group(1).lower()):
+        continue
+    for kind, pattern in (('Potwierdzenie e-maila', r'https?://\S+/email/verify/[^\s"<>\])]+'), ('Ustawienie hasła', r'https?://\S+/reset-password/[^\s"<>\])]+')):
+        links = re.findall(pattern, message)
+        if links:
+            found[kind] = (recipient.group(1).strip() if recipient else '?', html.unescape(links[-1]))
+if not found:
+    print('Brak linków' + (f' dla {who}' if who else '') + '.')
+for kind, (recipient, link) in found.items():
+    print(f'{kind} ({recipient}):\n  {link}')
+PY
+    ;;
+
+  usun)
+    read -r -p "Usunąć bazę $DB i log podglądu? Wpisz: usun $DB  > " answer
+    [ "$answer" = "usun $DB" ] || { echo "Nie potwierdzono — nic nie zmieniono."; exit 1; }
+    mysql_root -e "DROP DATABASE IF EXISTS \`$DB\`;"
+    rm -f "$LOG"
+    echo "Usunięto bazę $DB i log podglądu."
+    ;;
+
+  *)
+    sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1
+    ;;
+esac
